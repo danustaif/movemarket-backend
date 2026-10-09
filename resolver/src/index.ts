@@ -11,9 +11,10 @@ import { contractWriter, createChainClients } from "./chain/clients.ts";
 import { createTxQueue } from "./chain/txQueue.ts";
 import { createChainWatcher } from "./chain/watcher.ts";
 import { loadConfig, secret, type Config } from "./config.ts";
-import type { GameState, GameUpdate, Stop, TxQueue } from "./contracts.ts";
+import type { GameState, Stop, TxQueue } from "./contracts.ts";
 import { createCreRunner } from "./cre/runner.ts";
 import { createFaucet } from "./faucet/faucet.ts";
+import { createGamePipeline } from "./games/pipeline.ts";
 import { createGameRegistry } from "./games/registry.ts";
 import { createBroadcastFeed, fetchRoundInfo } from "./lichess/broadcast.ts";
 import { fetchGameJson, fetchSnapshot } from "./lichess/exportGame.ts";
@@ -91,26 +92,8 @@ setInterval(() => requester.flush().catch((err) => log("flush_failed", { err: St
 const engine = createMarketEngine({ tx, sse, requester, store, log });
 
 // ----------------------------------------------------------------------- alur per ply
-/** Partai yang di-untrack: tetap diikuti untuk hasil sementara, tanpa kunci dan tanpa pasar baru. */
-const untracked = new Set<string>();
-const tails = new Map<string, Promise<void>>(); // satu onPly berjalan per partai
-
-function onUpdate(u: GameUpdate) {
-  const r = registry.apply(u);
-  if (r.kind === "unchanged") return;
-  const st = r.state;
-  const prevTail = tails.get(st.gameRef) ?? Promise.resolve();
-  const next = prevTail.then(async () => {
-    if (r.kind === "corrected") log("correction", { gameRef: st.gameRef, firstDiffPly: r.firstDiffPly });
-    const ply = st.sans.length;
-    // Satu event untuk ply terakhir; fen hanya diketahui untuk posisi terakhir (replay memuat 20 ply sekaligus).
-    if (ply > 0) sse.publish("ply", { gameRef: st.gameRef, ply, san: st.sans[ply - 1]!, fen: st.fen, isReplay: st.isReplay, at: Date.now() });
-    if (st.ended && st.result) sse.publish("game_end", { gameRef: st.gameRef, result: st.result });
-    if (r.kind === "corrected" || untracked.has(st.gameRef)) engine.onCorrection(st);
-    else await engine.onPly(st, nowSec());
-  }).catch((err) => log("ply_failed", { gameRef: st.gameRef, err: String(err) }));
-  tails.set(st.gameRef, next);
-}
+const pipeline = createGamePipeline({ registry, engine, sse, nowSec, log });
+const onUpdate = pipeline.onUpdate;
 
 // ----------------------------------------------------------------------- broadcast dan replay
 const rounds = new Map<string, Stop>();
@@ -119,7 +102,7 @@ async function trackRound(roundId: string): Promise<string[]> {
   const info = await fetchRoundInfo(roundId);
   if (!(SOT.speed.supported as string[]).includes(info.speed)) log("speed_unsupported", { roundId, speed: info.speed });
   const refs = info.chapterIds.map((id) => `lichess:study:${roundId}:${id}`);
-  for (const ref of refs) untracked.delete(ref);
+  for (const ref of refs) pipeline.track(ref);
   if (!rounds.has(roundId)) {
     rounds.set(roundId, createBroadcastFeed({ roundId, speed: info.speed, log }).start(onUpdate));
     log("track", { roundId, games: refs.length, speed: info.speed });
@@ -136,7 +119,7 @@ const replayer = createReplayer({
   sse,
   engine,
   hasPendingStakes,
-  liveGames: () => registry.all().filter((g) => !g.isReplay && !g.ended && !untracked.has(g.gameRef)).length,
+  liveGames: () => registry.all().filter((g) => !g.isReplay && !g.ended && !pipeline.isUntracked(g.gameRef)).length,
   pool: cfg.replayPool,
   ...cfg.replay,
   log,
@@ -250,7 +233,7 @@ const app = createApp({
       return trackRound(b.roundId);
     },
     untrack: (gameRef) => {
-      untracked.add(gameRef);
+      pipeline.untrack(gameRef);
       if (replayer.active() === gameRef) replayer.stop();
       log("untrack", { gameRef });
     },
@@ -258,7 +241,7 @@ const app = createApp({
     void: async (ids): Promise<Hex> => (await tx.send({ kind: "adminVoid", ids })).transactionHash,
     state: () => ({
       config: cfg, limited, chainOffsetSec, viewers: sse.viewers(), replay: replayer.active(),
-      rounds: [...rounds.keys()], untracked: [...untracked],
+      rounds: [...rounds.keys()], untracked: pipeline.untracked(),
       games: registry.all().map((g) => ({ gameRef: g.gameRef, ply: g.sans.length, ended: g.ended, speed: g.speed })),
       markets: store.all(),
       creFailed: requester.failed(), // keputusan operator: POST /admin/void
