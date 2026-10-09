@@ -18,6 +18,7 @@ import { createGamePipeline } from "./games/pipeline.ts";
 import { createGameRegistry } from "./games/registry.ts";
 import { createBroadcastFeed, fetchRoundInfo } from "./lichess/broadcast.ts";
 import { fetchGameJson, fetchSnapshot } from "./lichess/exportGame.ts";
+import { STATUS_OPEN, isMismatch } from "./markets/codes.ts";
 import { createMarketEngine } from "./markets/engine.ts";
 import { createRequester } from "./markets/requester.ts";
 import { MemoryMarketStore } from "./markets/store.ts";
@@ -81,7 +82,7 @@ const requester = createRequester({
   fetchExport: (gameRef) => fetchSnapshot(gameRef),
   openIds: async (ids) => {
     const views = await publicClient.readContract({ address: cfg.liveMarket, abi: liveMarketAbi, functionName: "getMarkets", args: [ids] });
-    return views.filter((v) => v.status === 0).map((v) => v.id);
+    return views.filter((v) => v.status === STATUS_OPEN).map((v) => v.id);
   },
   nowSec,
   log,
@@ -175,8 +176,7 @@ async function startChain() {
       const m = store.get(id);
       if (!m || !m.final || !live) return;
       const voidReason = ev.name === "MarketVoided" ? m.voidReason : null;
-      const noWinners = m.final === "VOID" && voidReason === 2 && (m.provisional === "YES" || m.provisional === "NO");
-      if (m.final !== m.provisional && !noWinners) log("mismatch", { id, gameRef: m.gameRef, final: m.final, provisional: m.provisional, voidReason });
+      if (isMismatch(m)) log("mismatch", { id, gameRef: m.gameRef, final: m.final, provisional: m.provisional, voidReason });
       sse.publish("finalized", { gameRef: m.gameRef, marketId: String(id), outcome: m.final as FinalOutcome, voidReason, txHash: ev.txHash });
     } else if (ev.name === "ResolutionRequested" && live && cre) {
       const txHash = ev.txHash;

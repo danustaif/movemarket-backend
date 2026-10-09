@@ -1,15 +1,13 @@
 // State pasar dan posisi di memori, dibangun dari event LiveMarket (cadangan indexer untuk GET /positions/:address).
-import { ENUMS, type FinalOutcome, type OutcomeCode, type PositionDto, type ResolveOutcome, type StatusCode, type VoidReasonCode } from "@movemarket/shared";
+import { ENUMS, type OutcomeCode, type PositionDto, type ResolveOutcome, type VoidReasonCode } from "@movemarket/shared";
 import type { Address } from "viem";
 import type { LiveMarketEvent, MarketStore, TrackedMarket } from "../contracts.ts";
+import { statusOf } from "./codes.ts";
 
 /** LiveMarket.claimable(id, user), diinjeksi supaya store tidak membuat client sendiri. */
 export type ClaimableReader = (id: bigint, user: Address) => Promise<bigint>;
 
 interface Stake { yes: bigint; no: bigint; settled: boolean }
-
-const statusOf = (final: FinalOutcome | null) =>
-  ENUMS.Status.indexOf(final === null ? "OPEN" : final === "VOID" ? "VOIDED" : "RESOLVED") as StatusCode;
 
 export class MemoryMarketStore implements MarketStore {
   private markets = new Map<bigint, TrackedMarket>();
