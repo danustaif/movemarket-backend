@@ -18,7 +18,7 @@ Off-chain MoveMarket untuk Monad Testnet. Clone repo `movemarket-source` di sebe
 
 Kontrak antarmuka modul resolver ada di `resolver/src/contracts.ts`; API HTTP dan SSE di `@movemarket/shared` (`ResolverRoutes`, `SseEvents`).
 
-Belum ada: uji integrasi dengan anvil (kontrak + MockForwarder + resolver).
+Uji integrasi lokal (anvil + kontrak + MockForwarder + resolver, sumber replay dari fixture) ada di `resolver/test/integration/`; lihat Perintah.
 
 ## Perintah
 
@@ -26,6 +26,14 @@ Belum ada: uji integrasi dengan anvil (kontrak + MockForwarder + resolver).
 cd resolver && bun install && bun test && bun run typecheck
 cp .env.example .env    # isi alamat kontrak dan secret; jangan commit
 bun run dev             # tanpa alamat/secret: mode terbatas (HTTP, SSE, ingest, replay jalan; transaksi ditolak)
+
+# uji integrasi: anvil --chain-id 10143, deploy MockUSDC + LiveMarket + MockForwarder dari artefak forge,
+# resolver (src/index.ts) sebagai proses anak dengan CRE_MODE=off, replay e9SJcXpJ dari sot/fixtures, report palsu
+# lewat MockForwarder. Tanpa .env, tanpa jaringan luar (fetch selain loopback ditolak), sekitar 20 detik.
+# Prasyarat: Foundry (anvil) dan artefak kontrak (dari root repo ini, smart-contract di sebelahnya):
+#   cd ../smart-contract && git submodule update --init --recursive && forge build
+# Tanpa prasyarat itu test dilewati dengan pesan; `bun test` biasa selalu melewatinya.
+cd resolver && bun run test:integration
 
 cd cre/resolver-workflow && bun install && bun test && bun run typecheck && bun run build
 ```
