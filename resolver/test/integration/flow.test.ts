@@ -86,6 +86,8 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: replay -> pasa
   let miner: ReturnType<typeof setInterval>;
   const sseAbort = new AbortController();
   const sse: Sse[] = [];
+  /** Saat tiap market_created tiba: timestamp blok latest (waktu chain) dan nomor blok finalized, per id pasar. */
+  const createdAtChain = new Map<string, Promise<{ time: bigint; finalized: bigint }>>();
   const out: string[] = [];
   let pub: PublicClient;
   let rpc: string;
@@ -186,7 +188,8 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: replay -> pasa
       cwd: import.meta.dir,
       env: {
         PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "",
-        PORT: String(port), MONAD_TESTNET_RPC: rpc, MONAD_TESTNET_WS: `ws://127.0.0.1:${anvilPort}`,
+        // Tanpa MONAD_TESTNET_WS, seperti deploy Monad: event proposed dari receipt sendiri dan polling blok latest.
+        PORT: String(port), MONAD_TESTNET_RPC: rpc,
         LIVE_MARKET_ADDRESS: liveMarket, MOCK_USDC_ADDRESS: usdc, DEPLOY_BLOCK: String(deployBlock),
         CRE_MODE: "off", RESOLVER_PRIVATE_KEY: KEYS.resolver, ADMIN_TOKEN, REPLAY_START_PLY: "20",
         MM_TEST_GAS_LIMITS: JSON.stringify(gas),
@@ -207,7 +210,14 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: replay -> pasa
         for (const f of frames) {
           const event = /^event: (.+)$/m.exec(f)?.[1];
           const data = /^data: (.+)$/m.exec(f)?.[1];
-          if (event && data) sse.push({ event, data: JSON.parse(data) } as Sse);
+          if (!event || !data) continue;
+          const e = { event, data: JSON.parse(data) } as Sse;
+          if (e.event === "market_created") {
+            const at = Promise.all([pub.getBlock({ blockTag: "latest" }), pub.getBlock({ blockTag: "finalized" })])
+              .then(([l, f]) => ({ time: l.timestamp, finalized: f.number }));
+            for (const m of e.data.markets) createdAtChain.set(m.id, at);
+          }
+          sse.push(e);
         }
       }
     })().catch(() => {});
@@ -241,10 +251,24 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: replay -> pasa
     const capture = BigInt(created[1]!.id);
     const check = BigInt(created[0]!.id);
 
+    // market_created tiba (tanpa WebSocket) sebelum lockTime pasar menurut waktu chain, jadi masih bisa stake.
+    // Juga sebelum blok MarketCreated finalized: bukan dari jalur getLogs finalized (dulu 40-50 detik di Monad).
+    const createdBlock = new Map((await pub.getContractEvents({ address: liveMarket, abi: liveMarketAbi, eventName: "MarketCreated", fromBlock: 0n }))
+      .map((e) => [String(e.args.id), e.blockNumber]));
+    for (const m of created) {
+      const at = await createdAtChain.get(m.id)!;
+      expect(at.time).toBeLessThan(BigInt(m.lockTime));
+      expect(at.finalized).toBeLessThan(createdBlock.get(m.id)!);
+    }
+    expect(logged(out, "watcher_polling")).toHaveLength(1);
+
     // Alice 10 tUSDC YES, Bob 5 tUSDC NO di pasar makan, sebelum kunci ply 24.
     await send(KEYS.alice, liveMarket, liveMarketAbi as Abi, "bet", [capture, true, 10_000_000n], GAS_LIMITS.bet);
     await send(KEYS.bob, liveMarket, liveMarketAbi as Abi, "bet", [capture, false, 5_000_000n], GAS_LIMITS.bet);
     await waitSse("pool", (d) => d.marketId === String(capture) && d.poolYes === "10000000" && d.poolNo === "5000000");
+    // Receipt, polling, dan jalur finalized melihat MarketCreated yang sama: SSE market_created tetap sekali per id.
+    const createdIds = sse.flatMap((e) => (e.event === "market_created" ? e.data.markets.map((m) => m.id) : []));
+    expect(new Set(createdIds).size).toBe(createdIds.length);
 
     // Kunci ply (D11) di ply 24 = fromPly - LOCK_LEAD_PLIES.
     await waitSse("market_locked", (d) => d.marketIds.includes(String(capture)));

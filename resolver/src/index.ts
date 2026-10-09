@@ -73,8 +73,20 @@ const store = new MemoryMarketStore((id, user) =>
 const writer = chainReady && resolverWallet
   ? contractWriter(resolverWallet, publicClient, { liveMarket: cfg.liveMarket, mockUsdc: cfg.mockUsdc })
   : undefined;
-const tx: TxQueue = writer
+// Dibuat di sini (mulai saat subscribe di startChain) supaya receipt txQueue bisa diteruskan ke watcher.
+const watcher = chainReady
+  ? createChainWatcher({
+    client: publicClient, wsClient, address: cfg.liveMarket, fromBlock: cfg.deployBlock, log,
+    onError: (err) => log("watcher_error", { err: String(err) }),
+  })
+  : undefined;
+const queue = writer
   ? createTxQueue({ write: writer.write, onRetry: (err) => { log("tx_retry", { err: String(err) }); writer.resetNonce(); } })
+  : undefined;
+// Log receipt (MarketCreated, MarketLocked, ...) langsung jadi event proposed: SSE market_created dan store
+// tidak menunggu WebSocket atau polling (tanpa WS dulu 40-50 detik, lewat BET_WINDOW_SEC).
+const tx: TxQueue = queue
+  ? { send: async (t) => { const r = await queue.send(t); watcher?.receipt(r); return r; } }
   : { send: async (t) => { throw new Error(`txQueue tidak aktif (mode terbatas: ${limited.join(", ")}), ${t.kind} tidak dikirim`); } };
 
 const requester = createRequester({
@@ -153,12 +165,9 @@ async function recoverGame(gameRef: string) {
 }
 
 async function startChain() {
+  if (!watcher) return;
   let startHead = 0n;
   try { startHead = await publicClient.getBlockNumber(); } catch (err) { log("chain_unreachable", { err: String(err) }); }
-  const watcher = createChainWatcher({
-    client: publicClient, wsClient, address: cfg.liveMarket, fromBlock: cfg.deployBlock,
-    onError: (err) => log("watcher_error", { err: String(err) }),
-  });
   watcher.subscribe((ev, fin) => {
     store.apply(ev);
     const live = ev.blockNumber >= startHead; // event lama (pemulihan) tidak dikirim ke SSE dan tidak menjalankan CRE

@@ -1,5 +1,6 @@
 // Orkestrator per ply (RESOLVER_SERVICE 2.3 sampai 2.4). Urutan wajib: kunci -> hasil sementara -> rencana.
-// Semua dependensi diinjeksi. SSE market_created dikirim watcher dari event MarketCreated (id baru ada di event).
+// Semua dependensi diinjeksi. SSE market_created dikirim dari event MarketCreated (id baru ada di event) yang
+// watcher terima dari receipt createMarkets (index.ts membungkus txQueue), bukan dari engine.
 import { SOT, type FinalOutcome } from "@movemarket/shared";
 import type { GameState, MarketEngine, Requester, SseHub, TrackedMarket, TxQueue } from "../contracts.ts";
 import { locksDue } from "./locker.ts";
