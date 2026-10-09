@@ -14,7 +14,7 @@ Off-chain MoveMarket untuk Monad Testnet. Clone repo `movemarket-source` di sebe
 |---|---|
 | `resolver/` | Selesai untuk sumber replay dan broadcast: registry, planner, kunci ply, hasil sementara, requester (D17, D18), watcher proposed/finalized (D20), tx queue, runner CRE, faucet, SSE, route HTTP publik dan admin, pemulihan setelah restart. Sumber TV (Could) belum. Transaksi resolver menunggu `gas.limits` di SOT diukur di testnet; sampai itu `TxQueue` menolak mengirim dengan error jelas |
 | `cre/` | Proyek dari `cre init`, handler `ResolutionRequested` sampai report `onReport`, build WASM lulus. Simulasi dengan tx nyata menunggu `LiveMarket` di-deploy. Detail: `cre/README.md` |
-| `indexer/` | Hanya kontrak (`schema.graphql`, `queries.graphql`). `envio init` menunggu kontrak di-deploy dan terverifikasi |
+| `indexer/` | Proyek `envio@3.0.0-alpha.21` dari perintah init SOT: config Monad Testnet, handler INDEXER.md bagian 3, test mock DB lulus. Diverifikasi lokal terhadap Monad Testnet (pasar 1-8 cocok dengan on-chain). Deploy Envio Cloud belum (butuh login user). Detail: `indexer/README.md` |
 
 Kontrak antarmuka modul resolver ada di `resolver/src/contracts.ts`; API HTTP dan SSE di `@movemarket/shared` (`ResolverRoutes`, `SseEvents`).
 
@@ -36,4 +36,7 @@ bun run dev             # tanpa alamat/secret: mode terbatas (HTTP, SSE, ingest,
 cd resolver && bun run test:integration
 
 cd cre/resolver-workflow && bun install && bun test && bun run typecheck && bun run build
+
+cd indexer && pnpm install && pnpm codegen && pnpm typecheck && pnpm test
+TUI_OFF=true pnpm dev   # Docker; butuh ENVIO_API_TOKEN lokal, lihat indexer/README.md
 ```
