@@ -86,7 +86,7 @@ export class MemoryMarketStore implements MarketStore {
       out.push((async () => ({
         marketId: id.toString(), gameRef: m.gameRef, stakeYes: s.yes.toString(), stakeNo: s.no.toString(),
         status: statusOf(m.final), outcome: ENUMS.Outcome.indexOf(m.final ?? "NONE") as OutcomeCode,
-        resolveDeadline: m.resolveDeadline, settled: s.settled,
+        resolveDeadline: m.resolveDeadline, settled: s.settled, voidReason: m.voidReason,
         // Hanya pasar final dan belum diklaim yang dibaca dari kontrak; sisanya pasti 0.
         claimable: (m.final !== null && !s.settled ? await this.claimable(id, address) : 0n).toString(),
       }))());

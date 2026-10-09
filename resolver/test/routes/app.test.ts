@@ -23,7 +23,7 @@ function setup(over: Partial<AppDeps> = {}) {
     registry: { all: () => [game], get: (r) => (r === REF ? game : undefined) },
     store: {
       all: () => markets, byGame: (r) => markets.filter((m) => m.gameRef === r),
-      positions: async () => [{ marketId: "123", gameRef: REF, stakeYes: "5", stakeNo: "0", status: 0, outcome: 0, resolveDeadline: 1, settled: false, claimable: "0" }],
+      positions: async () => [{ marketId: "123", gameRef: REF, stakeYes: "5", stakeNo: "0", status: 0, outcome: 0, resolveDeadline: 1, settled: false, claimable: "0", voidReason: null }],
     },
     sse: createSseHub({ pingSec: 0 }),
     faucet: {

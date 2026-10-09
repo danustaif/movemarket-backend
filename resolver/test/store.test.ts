@@ -39,13 +39,21 @@ test("posisi per alamat, claimable dibaca lewat fungsi injeksi, event ganda (pro
 
   const pos = await s.positions(ALICE.toLowerCase() as Address);
   expect(pos).toEqual([
-    { marketId: "3", gameRef: ref, stakeYes: "5000000", stakeNo: "1000000", status: 1, outcome: 1, resolveDeadline: 22615, settled: false, claimable: "9800000" },
-    { marketId: "5", gameRef: ref, stakeYes: "1000000", stakeNo: "0", status: 0, outcome: 0, resolveDeadline: 22615, settled: false, claimable: "0" },
+    { marketId: "3", gameRef: ref, stakeYes: "5000000", stakeNo: "1000000", status: 1, outcome: 1, resolveDeadline: 22615, settled: false, claimable: "9800000", voidReason: null },
+    { marketId: "5", gameRef: ref, stakeYes: "1000000", stakeNo: "0", status: 0, outcome: 0, resolveDeadline: 22615, settled: false, claimable: "0", voidReason: null },
   ]);
   expect(reads).toEqual([3n]); // pasar belum final tidak dibaca
 
   s.apply(ev({ name: "Claimed", args: { id: 3n, user: ALICE, payout: 9_800_000n } }, 7));
   expect((await s.positions(ALICE))[0]).toMatchObject({ settled: true, claimable: "0" });
+});
+
+test("posisi pasar VOID membawa alasan void (NO_WINNERS) untuk label /me", async () => {
+  const s = new MemoryMarketStore(async () => 0n);
+  s.apply(created(4n));
+  s.apply(ev({ name: "BetPlaced", args: { id: 4n, user: ALICE, yes: true, amount: 1_000_000n, poolYes: 1_000_000n, poolNo: 0n } }, 2));
+  s.apply(ev({ name: "MarketVoided", args: { id: 4n, reason: 2 } }, 3));
+  expect((await s.positions(ALICE))[0]).toMatchObject({ status: 2, outcome: 3, voidReason: 2 });
 });
 
 test("setProvisional menyimpan hasil sementara", () => {
