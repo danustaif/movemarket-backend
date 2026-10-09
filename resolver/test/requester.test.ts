@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "bun:test";
 import type { Snapshot } from "@movemarket/shared";
 import type { ResolverTx, TrackedMarket } from "../src/contracts.ts";
-import { createRequester } from "../src/markets/requester.ts";
+import { createRequester, type RequesterDeps } from "../src/markets/requester.ts";
 import { market, quietSans } from "./helpers.ts";
 
 const REF = "lichess:game:e9SJcXpJ";
@@ -12,7 +12,7 @@ let markets: Map<bigint, TrackedMarket>;
 let exportSnap: Snapshot;
 let open: Set<bigint>;
 
-const setup = () =>
+const setup = (over: Partial<RequesterDeps> = {}) =>
   createRequester({
     tx: { send: async (t: ResolverTx) => { if (t.kind === "requestResolution") sent.push({ gameRef: t.gameRef, ids: t.ids }); return {} as never; } },
     market: (id) => markets.get(id),
@@ -20,6 +20,7 @@ const setup = () =>
     openIds: async (ids) => ids.filter((id) => open.has(id)),
     nowSec: () => now,
     log: (event) => void logs.push(event),
+    ...over,
   });
 
 /** n pasar CHECK ANY ply 1-4 dengan stake; sans sepi -> NO. */
@@ -99,4 +100,43 @@ test("retry hanya id OPEN setelah FINAL_WAIT_SEC + backoff, lalu cre_failed sete
   expect(logs).toContain("cre_failed");
   now += 10_000; await r.flush();
   expect(sent).toHaveLength(4);
+});
+
+test("retry yang gagal menunggu jadwal berikutnya, tidak diulang tiap flush", async () => {
+  let attempts = 0;
+  let fail = false;
+  const r = setup({
+    tx: { send: async () => { attempts++; if (fail) throw new Error("rpc down"); return {} as never; } },
+    openIds: async (ids) => ids,
+  });
+  r.add(REF, seed(1));
+  await r.flush();
+  expect(attempts).toBe(1);
+  fail = true;
+  now += 120 + 30; await r.flush(); // retry 1 gagal
+  expect(attempts).toBe(2);
+  now += 3; await r.flush();
+  now += 3; await r.flush();
+  expect(attempts).toBe(2);
+  fail = false;
+  now += 120 + 60; await r.flush(); // jadwal retry 2 dihitung dari retry 1 yang gagal
+  expect(attempts).toBe(3);
+});
+
+test("maxBatch dari config (REQUEST_MAX_BATCH) menggantikan default SOT", async () => {
+  const r = setup({ maxBatch: 3 });
+  r.add(REF, seed(7));
+  await r.flush();
+  expect(sent.map((s) => s.ids.length)).toEqual([3, 3, 1]);
+});
+
+test("cre_failed ditandai untuk operator dengan gameRef dan waktu; hilang setelah settled", async () => {
+  const r = setup();
+  r.add(REF, seed(1));
+  open = new Set([1n]);
+  await r.flush();
+  for (const wait of [150, 180, 240, 120]) { now += wait; await r.flush(); }
+  expect(r.failed()).toEqual([{ id: 1n, gameRef: REF, at: now }]);
+  r.settled(1n); // misal adminVoid oleh operator
+  expect(r.failed()).toEqual([]);
 });

@@ -84,6 +84,7 @@ const requester = createRequester({
   },
   nowSec,
   log,
+  maxBatch: cfg.requestMaxBatch,
 });
 setInterval(() => requester.flush().catch((err) => log("flush_failed", { err: String(err) })), SOT.resolver.REQUEST_FLUSH_SEC * 1000);
 
@@ -260,6 +261,7 @@ const app = createApp({
       rounds: [...rounds.keys()], untracked: [...untracked],
       games: registry.all().map((g) => ({ gameRef: g.gameRef, ply: g.sans.length, ended: g.ended, speed: g.speed })),
       markets: store.all(),
+      creFailed: requester.failed(), // keputusan operator: POST /admin/void
     }),
   },
 });
