@@ -12,13 +12,13 @@ Off-chain MoveMarket untuk Monad Testnet. Clone repo `movemarket-source` di sebe
 
 | Bagian | Status |
 |---|---|
-| `resolver/` | Selesai untuk sumber replay dan broadcast: registry, planner, kunci ply, hasil sementara, requester (D17, D18), watcher proposed/finalized (D20), tx queue, runner CRE, faucet, SSE, route HTTP publik dan admin, pemulihan setelah restart. Sumber TV (Could) belum. Paket deploy container: `Dockerfile`, `docker-compose.yml` (bagian Deploy) |
+| `resolver/` | Selesai untuk sumber replay dan broadcast: registry, planner, kunci ply, hasil sementara, requester (D17, D18), watcher proposed/finalized (D20), tx queue, runner CRE (`simulate` lewat CLI, `mock` tanpa CLI, D23), faucet, SSE, route HTTP publik dan admin, pemulihan setelah restart. Sumber TV (Could) belum. Paket deploy container: `Dockerfile`, `docker-compose.yml` (bagian Deploy) |
 | `cre/` | Proyek dari `cre init`, handler `ResolutionRequested` sampai report `onReport`, build WASM lulus. Simulasi dengan tx nyata menunggu `LiveMarket` di-deploy. Detail: `cre/README.md` |
 | `indexer/` | Proyek `envio@3.0.0-alpha.21` dari perintah init SOT: config Monad Testnet, handler INDEXER.md bagian 3, test mock DB lulus. Diverifikasi lokal terhadap Monad Testnet (pasar 1-8 cocok dengan on-chain). Deploy Envio Cloud belum (butuh login user). Detail: `indexer/README.md` |
 
 Kontrak antarmuka modul resolver ada di `resolver/src/contracts.ts`; API HTTP dan SSE di `@movemarket/shared` (`ResolverRoutes`, `SseEvents`).
 
-Uji integrasi lokal (anvil + kontrak + MockForwarder + resolver, sumber replay dari fixture) ada di `resolver/test/integration/`; lihat Perintah.
+Uji integrasi lokal (anvil + kontrak + MockForwarder + resolver, sumber replay dari fixture; plus runner `CRE_MODE=mock` terhadap bytecode MockKeystoneForwarder asli) ada di `resolver/test/integration/`; lihat Perintah.
 
 ## Perintah
 
@@ -72,14 +72,23 @@ Isi `backend/resolver/.env` di server (dibaca compose lewat `env_file`; jangan c
 | `ADMIN_TOKEN` | ya | Tanpa ini `/admin/*` mati |
 | `CORS_ORIGIN` | ya | Domain frontend |
 | `MONAD_TESTNET_RPC`, `MONAD_TESTNET_WS` | disarankan | RPC sponsor untuk proses 24 jam |
-| `CRE_MODE` | | Default `simulate`; `off` kalau resolusi dijalankan di tempat lain |
+| `CRE_MODE` | | Default `simulate`. **VPS sampai Early Access: `mock`** (tanpa CLI dan kredensial `cre`, lihat di bawah). `off` kalau resolusi dijalankan di tempat lain |
 | `CRE_ETH_PRIVATE_KEY` | untuk `simulate` | Wallet `--broadcast` CLI `cre` (saldo di atas 10 MON, SOT 13a). Runner meneruskan env proses ke `cre` kecuali tiga secret resolver di atas |
-| `CRE_API_KEY` | alternatif sesi login | Lihat di bawah |
+| `CRE_API_KEY` | alternatif sesi login, untuk `simulate` | Lihat di bawah |
 | `TRUST_PROXY` | | `true` di belakang reverse proxy |
 
 `CRE_PROJECT_DIR` sudah di-set image ke `/app/backend/cre`; jangan di-override.
 
-### Kredensial CLI `cre`
+### Sampai Early Access: `CRE_MODE=mock`
+
+CLI `cre` di container butuh login atau `CRE_API_KEY`, dan keduanya belum tersedia. Supaya pasar ber-stake tetap selesai, set `CRE_MODE=mock` (SOT D23): resolver menjalankan langkah handler workflow yang sama (`getMarkets` di blok finalized, export Lichess, `resolve()`, payload) dengan fungsi dari `@movemarket/shared`, lalu memanggil `report()` MockKeystoneForwarder (`0xB9F79d...`, forwarder yang di-set di `LiveMarket`) dengan wallet resolver lewat antrian transaksi yang sama, gas `cre.gasLimit`. Tidak perlu `CRE_ETH_PRIVATE_KEY`, `CRE_API_KEY`, atau sesi `cre login`. Spesifikasi: `source/docs/RESOLVER_SERVICE.md` 2.7a.
+
+- Hanya testnet. Bukan konsensus multi-node: satu proses, satu fetch export, dipercaya seperti resolver. MockKeystoneForwarder memang permissionless (tanpa cek tanda tangan), jadi siapa pun bisa memanggil `report()` selama `LiveMarket` memakai forwarder ini.
+- Bukti bounty CRE tetap dari `cre workflow simulate --broadcast` (tx report `0xb9ee...13c5`), bukan dari mode ini.
+- Log `cre_done` berisi `note: "mock-cre"`; metadata report memakai nama workflow `mock-cre` sehingga report mock bisa dibedakan on-chain dari report CLI.
+- Saat Early Access aktif: deploy workflow, `setForwarder(KeystoneForwarder)`, lalu `CRE_MODE=don`. Mode mock berhenti bekerja begitu forwarder diganti (`onReport` menolak pengirim, runner mencatat `cre_run_failed`).
+
+### Kredensial CLI `cre` (hanya `CRE_MODE=simulate`)
 
 `cre workflow simulate` (termasuk target `local-simulation`) **butuh autentikasi**. Diuji dengan `HOME` kosong dan di dalam container tanpa kredensial: CLI keluar dengan kode 1, `Authentication required: not logged in and no CRE_API_KEY set`. Runner mencatat pesan itu sebagai error `cre simulate exit 1`, jadi pasar tidak final sampai kredensial ada. `cre workflow build` tidak butuh login (dipakai saat build image).
 
