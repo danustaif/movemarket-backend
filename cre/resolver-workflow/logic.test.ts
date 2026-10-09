@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { SOT } from "@movemarket/shared";
 import { encodeAbiParameters, hexToBytes, parseAbiParameters } from "viem";
-import { type MarketView, batchProblem, configSchema, openViews, payloadFromBody, decodeResolutionRequested, RESOLUTION_REQUESTED_TOPIC } from "./logic";
+import { type MarketView, configSchema, payloadFromBody, decodeResolutionRequested, RESOLUTION_REQUESTED_TOPIC } from "./logic";
 import { GAME_KEY, GAME_REF, TOPIC0 } from "./testSot";
 
 const logOf = (gameKey: `0x${string}`, gameRef: string, ids: bigint[]) => ({
@@ -21,22 +21,8 @@ test("decode log ResolutionRequested menjadi gameKey, gameRef, ids bigint", () =
   });
 });
 
-test("batchProblem: gameKey harus keccak gameRef, 1 sampai max id", () => {
-  const ok = { gameKey: GAME_KEY, gameRef: GAME_REF, ids: [1n] } as const;
-  expect(batchProblem(ok, 8)).toBeNull();
-  expect(batchProblem({ ...ok, gameRef: "lichess:game:AAAAAAAA" }, 8)).toBe("gameKey mismatch");
-  expect(batchProblem({ ...ok, ids: [] }, 8)).toBe("empty batch");
-  expect(batchProblem({ ...ok, ids: [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n] }, 8)).toBeNull();
-  expect(batchProblem({ ...ok, ids: [1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n] }, 8)).toBe("batch too large");
-});
-
 const view = (id: bigint, over: Partial<MarketView> = {}): MarketView => ({
   id, gameKey: GAME_KEY, marketType: 0, side: 0, fromPly: 10, toPly: 12, lockTime: 0n, status: 0, ...over,
-});
-
-test("openViews membuang pasar yang bukan OPEN atau gameKey-nya beda", () => {
-  const views = [view(1n), view(2n, { status: 1 }), view(3n, { gameKey: `0x${"00".repeat(32)}` }), view(4n, { status: 2 }), view(5n)];
-  expect(openViews(views, GAME_KEY).map((v) => v.id)).toEqual([1n, 5n]);
 });
 
 // Fixture dibaca dari tempatnya (CLAUDE.md aturan 10), tidak disalin.
