@@ -119,12 +119,14 @@ export interface Requester {
 
 // ======================================================================= chain
 
-/** Transaksi wallet resolver. Prioritas dari jenisnya: lockMarkets > createMarkets > requestResolution > mint. */
+/** Transaksi wallet resolver. Prioritas dari jenisnya: lockMarkets > adminVoid > createMarkets > requestResolution > mint. */
 export type ResolverTx =
   | { kind: "lockMarkets"; ids: bigint[] }
   | { kind: "createMarkets"; params: MarketParams[] }
   | { kind: "requestResolution"; gameRef: string; ids: bigint[] }
-  | { kind: "mint"; to: Address; amount: bigint };
+  | { kind: "mint"; to: Address; amount: bigint }
+  /** POST /admin/void. Butuh wallet resolver = owner LiveMarket; kalau bukan, kontrak revert. */
+  | { kind: "adminVoid"; ids: bigint[] };
 
 /**
  * Antrian tunggal wallet resolver dengan nonceManager viem. Gas eksplisit base + perMarket x n dari
