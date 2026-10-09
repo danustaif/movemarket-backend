@@ -1,0 +1,21 @@
+{
+  "name": "resolver-workflow",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "compile": "cre-compile main.ts ../.build/resolver-workflow.wasm"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.20.0",
+    "@movemarket/shared": "file:../../../source/shared",
+    "viem": "^2.57.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "5.9.3"
+  }
+}

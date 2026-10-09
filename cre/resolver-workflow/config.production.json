@@ -1,0 +1,8 @@
+{
+  "mode": "onchain",
+  "chainSelectorName": "monad-testnet",
+  "liveMarketAddress": "0x0000000000000000000000000000000000000000",
+  "gasLimit": "1000000",
+  "maxMarketsPerReport": 8,
+  "lichessBaseUrl": "https://lichess.org"
+}

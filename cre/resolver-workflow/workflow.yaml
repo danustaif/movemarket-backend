@@ -1,0 +1,30 @@
+# Target workflow resolver-workflow. Nama target dari `cre init` (CLI v1.33.0): staging-settings, production-settings.
+# local-simulation: tanpa receiver, berhenti sebelum report (CRE_WORKFLOW.md bagian 2). Jangan dipakai dengan --broadcast.
+# deployment-registry "private": ganti dengan ID dari `cre registry list` sebelum --broadcast atau deploy.
+
+staging-settings:
+  user-workflow:
+    workflow-name: "resolver-workflow-staging"
+    deployment-registry: "private"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: ""
+
+production-settings:
+  user-workflow:
+    workflow-name: "resolver-workflow-production"
+    deployment-registry: "private"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.production.json"
+    secrets-path: ""
+
+local-simulation:
+  user-workflow:
+    workflow-name: "resolver-workflow-local"
+    deployment-registry: "private"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.local-simulation.json"
+    secrets-path: ""
