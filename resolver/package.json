@@ -7,7 +7,8 @@
     "typecheck": "tsc --noEmit",
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "test:integration": "MM_INTEGRATION=1 bun test test/integration"
   },
   "dependencies": {
     "@movemarket/shared": "file:../../source/shared",
