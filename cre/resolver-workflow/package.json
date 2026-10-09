@@ -5,7 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "compile": "cre-compile main.ts ../.build/resolver-workflow.wasm"
+    "build": "cd .. && cre workflow build ./resolver-workflow --target local-simulation --non-interactive"
   },
   "license": "UNLICENSED",
   "dependencies": {
