@@ -1,3 +1,4 @@
 *.env
 .build/
 *.wasm
+.cre_build_tmp.js
