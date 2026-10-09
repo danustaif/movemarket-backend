@@ -93,8 +93,8 @@ export interface MarketEngine {
   onPly(state: GameState, nowSec: number): Promise<void>;
   /** Setelah koreksi: hitung ulang hasil sementara semua pasar partai yang belum final. */
   onCorrection(state: GameState): void;
-  /** Saat tidak ada penonton (SOT D16): berhenti membuat pasar baru, tetap kunci dan selesaikan. */
-  setSpawning(enabled: boolean): void;
+  /** Per partai. Replay tanpa penonton (SOT D16): berhenti membuat pasar baru, tetap kunci dan selesaikan. */
+  setSpawning(gameRef: string, enabled: boolean): void;
 }
 
 /** State pasar dan posisi di memori, diisi ChainWatcher. Cadangan indexer untuk GET /positions/:address. */

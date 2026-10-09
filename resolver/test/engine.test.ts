@@ -59,12 +59,12 @@ test("kunci tidak dikirim dua kali sebelum MarketLocked masuk store; dicoba ulan
 
 test("setSpawning(false) menghentikan pasar baru tapi tetap mengunci; ply yang sama tidak spawn dua kali", async () => {
   const e = engine();
-  e.setSpawning(false);
+  e.setSpawning("lichess:game:e9SJcXpJ", false);
   put(market({ id: 1n, fromPly: 29, lockTime: NOW + 5 }));
   await e.onPly(gameState({ sans: quietSans(28) }), NOW);
   expect(calls).not.toContain("tx:createMarkets");
   expect(calls).toContain("tx:lockMarkets");
-  e.setSpawning(true);
+  e.setSpawning("lichess:game:e9SJcXpJ", true);
   calls = [];
   await e.onPly(gameState({ sans: quietSans(32) }), NOW);
   await e.onPly(gameState({ sans: quietSans(32), ended: false }), NOW);
@@ -78,4 +78,11 @@ test("koreksi menghitung ulang semua pasar belum final, termasuk yang sudah di-r
   expect(store.get(1n)!.provisional).toBe("YES");
   expect(store.get(2n)!.provisional).toBe("NO");
   expect(calls).toEqual([`sse:provisional:{"gameRef":"lichess:game:e9SJcXpJ","marketId":"1","outcome":"YES"}`]);
+});
+
+test("setSpawning per partai: replay tanpa penonton tidak menghentikan pasar broadcast live (D16)", async () => {
+  const e = engine();
+  e.setSpawning("lichess:game:e9SJcXpJ", false);
+  await e.onPly(gameState({ gameRef: "lichess:study:cbVdruwJ:fGXnnaOp", source: "broadcast", isReplay: false }), NOW);
+  expect(calls).toContain("tx:createMarkets");
 });

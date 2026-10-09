@@ -13,12 +13,12 @@ function setup(o: { viewers?: number; live?: number; stakes?: boolean; pool?: st
   const updates: GameUpdate[] = [];
   const sse: string[] = [];
   const logs: string[] = [];
-  const spawning: boolean[] = [];
+  const spawning: string[] = [];
   const r = createReplayer({
     fetchGame: async (id) => (id === rapid.id ? rapid : bullet),
     onUpdate: (u) => updates.push(u),
     sse: { publish: (e, d) => sse.push(`${e}:${(d as { gameRef: string }).gameRef}`), viewers: () => env.viewers },
-    engine: { setSpawning: (b) => spawning.push(b) },
+    engine: { setSpawning: (ref, b) => spawning.push(`${ref}:${b}`) },
     hasPendingStakes: () => env.stakes,
     liveGames: () => env.live,
     pool: o.pool ?? [],
@@ -69,7 +69,7 @@ describe("Replayer", () => {
     await s.r.start("ymG9hwyh");
     s.env.viewers = 0;
     await s.run(121);
-    expect(s.spawning).toEqual([false]);
+    expect(s.spawning).toEqual(["lichess:game:ymG9hwyh:true", "lichess:game:ymG9hwyh:false"]);
     const n = s.updates.length;
     await s.run(40);
     expect(s.updates.length).toBe(n + 2); // masih maju karena ada stake
@@ -80,7 +80,14 @@ describe("Replayer", () => {
     expect(s.updates.length).toBe(paused);
     s.env.viewers = 1;
     await s.run(21);
-    expect(s.spawning).toEqual([false, true]);
+    expect(s.spawning.slice(1)).toEqual(["lichess:game:ymG9hwyh:false", "lichess:game:ymG9hwyh:true"]);
     expect(s.updates.length).toBeGreaterThan(paused);
+  });
+
+  test("replay yang dimulai tanpa penonton tidak membuat pasar sejak update pertama", async () => {
+    const s = setup({ viewers: 0 });
+    await s.run(121);
+    await s.r.start("ymG9hwyh");
+    expect(s.spawning).toEqual(["lichess:game:ymG9hwyh:false"]);
   });
 });

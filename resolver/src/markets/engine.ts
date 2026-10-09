@@ -16,7 +16,8 @@ export interface EngineDeps {
 }
 
 export function createMarketEngine(d: EngineDeps): MarketEngine {
-  let spawning = true;
+  /** Partai yang sedang tidak boleh membuat pasar baru (D16, replay tanpa penonton). */
+  const paused = new Set<string>();
   /** id yang lockMarkets-nya sudah terkirim; store baru tahu lewat event MarketLocked. */
   const lockSent = new Set<bigint>();
   /** Ply terakhir yang sudah direncanakan per partai, supaya update di ply yang sama tidak spawn ulang. */
@@ -54,7 +55,7 @@ export function createMarketEngine(d: EngineDeps): MarketEngine {
       applyProvisional(state, d.store.byGame(ref).filter((m) => m.lockTime <= nowSec && !m.requested && m.final === null));
 
       const ply = state.sans.length;
-      if (!spawning || ply <= (plannedPly.get(ref) ?? 0)) return;
+      if (paused.has(ref) || ply <= (plannedPly.get(ref) ?? 0)) return;
       const params = planMarkets(state, d.store.byGame(ref), nowSec);
       if (!params.length) return;
       plannedPly.set(ref, ply);
@@ -69,8 +70,9 @@ export function createMarketEngine(d: EngineDeps): MarketEngine {
       applyProvisional(state, d.store.byGame(state.gameRef).filter((m) => m.final === null));
     },
 
-    setSpawning(enabled) {
-      spawning = enabled;
+    setSpawning(gameRef, enabled) {
+      if (enabled) paused.delete(gameRef);
+      else paused.add(gameRef);
     },
   };
 }

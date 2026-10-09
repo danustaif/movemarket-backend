@@ -30,9 +30,16 @@ export function createReplayer(d: ReplayerDeps): Replayer & { tick(): Promise<vo
   let active: Active | null = null;
   let lastLiveAt = now();
   let lastViewerAt = now();
+  /** Status spawn yang terakhir dikirim ke engine untuk replay aktif. */
   let spawning = true;
   let poolIdx = 0;
   let starting = false;
+
+  const watched = (t: number) => t - lastViewerAt < d.viewerGraceSec * 1000;
+  const setSpawning = (gameRef: string, enabled: boolean) => {
+    spawning = enabled;
+    d.engine.setSpawning(gameRef, enabled);
+  };
 
   const emit = (a: Active) => {
     const ended = a.ply >= a.full.sans.length;
@@ -51,6 +58,7 @@ export function createReplayer(d: ReplayerDeps): Replayer & { tick(): Promise<vo
     if (active) d.log("replay_replaced", { gameRef: active.full.gameRef });
     const intervalMs = plyIntervalSec * 1000;
     active = { full, ply: Math.min(d.startPly, full.sans.length), intervalMs, nextAt: now() + intervalMs };
+    setSpawning(full.gameRef, watched(now())); // sebelum update pertama, supaya ply 20 tidak spawn tanpa penonton
     d.sse.publish("replay_starting", { gameRef: full.gameRef });
     d.log("replay_started", { gameRef: full.gameRef, ply: active.ply });
     emit(active);
@@ -62,17 +70,17 @@ export function createReplayer(d: ReplayerDeps): Replayer & { tick(): Promise<vo
     if (d.liveGames() > 0) lastLiveAt = t;
     if (d.sse.viewers() > 0) lastViewerAt = t;
 
-    // D16: tanpa penonton selama VIEWER_GRACE_SEC berhenti membuat pasar baru.
-    const watched = t - lastViewerAt < d.viewerGraceSec * 1000;
-    if (watched !== spawning) {
-      spawning = watched;
-      d.engine.setSpawning(watched);
-      d.log(watched ? "spawning_resumed" : "spawning_paused", {});
+    // D16: tanpa penonton selama VIEWER_GRACE_SEC, replay aktif berhenti membuat pasar baru.
+    // Hanya partai replay; broadcast live tetap membuat pasar.
+    const w = watched(t);
+    if (active && w !== spawning) {
+      setSpawning(active.full.gameRef, w);
+      d.log(w ? "spawning_resumed" : "spawning_paused", { gameRef: active.full.gameRef });
     }
 
     if (active && t >= active.nextAt) {
       // Tanpa penonton: tetap maju selama ada pasar ber-stake yang belum final, lalu jeda.
-      if (watched || d.hasPendingStakes(active.full.gameRef)) {
+      if (w || d.hasPendingStakes(active.full.gameRef)) {
         active.ply++;
         active.nextAt = t + active.intervalMs;
         emit(active);
