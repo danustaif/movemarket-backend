@@ -4,13 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@movemarket/shared": "file:../../source/shared",
-    "viem": "^2.57.0"
+    "chess.js": "^1.4.0",
+    "hono": "^4.13.13",
+    "viem": "^2.57.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.2",
     "typescript": "^5.9.0"
   }
 }
