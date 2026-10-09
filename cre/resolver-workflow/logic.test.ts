@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { SOT } from "@movemarket/shared";
 import { encodeAbiParameters, hexToBytes, parseAbiParameters } from "viem";
-import { type MarketView, batchProblem, configSchema, openViews, parsePayload, payloadFromBody, decodeResolutionRequested, RESOLUTION_REQUESTED_TOPIC } from "./logic";
+import { type MarketView, batchProblem, configSchema, openViews, payloadFromBody, decodeResolutionRequested, RESOLUTION_REQUESTED_TOPIC } from "./logic";
 import { GAME_KEY, GAME_REF, TOPIC0 } from "./testSot";
 
 const logOf = (gameKey: `0x${string}`, gameRef: string, ids: bigint[]) => ({
@@ -63,13 +63,6 @@ test("payloadFromBody (json): pasar yang belum pasti (PENDING) tidak ikut", () =
 
 test("payloadFromBody (pgn): ply 41 Qe3 bukan skak, rentang lengkap NO", () => {
   expect(payloadFromBody(fixture("study-chapter.cbVdruwJ.fGXnnaOp.pgn"), "pgn", [view(2n, { fromPly: 41, toPly: 41 })])).toBe("2:2");
-});
-
-test("parsePayload: payload konsensus jadi ids dan outcomes report", () => {
-  expect(parsePayload("3:2,10:3,12:1")).toEqual({ ids: [3n, 10n, 12n], outcomes: [2, 3, 1] });
-  expect(parsePayload("")).toEqual({ ids: [], outcomes: [] });
-  expect(() => parsePayload("3:0")).toThrow();
-  expect(() => parsePayload("x:1")).toThrow();
 });
 
 const validConfig = {

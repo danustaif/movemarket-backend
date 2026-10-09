@@ -20,10 +20,10 @@ import {
   type Runtime,
 } from "@chainlink/cre-sdk";
 import { EVM_PB } from "@chainlink/cre-sdk/pb";
-import { encodeReport, liveMarketAbi, sourceRequest, type CreHandlerResult } from "@movemarket/shared";
+import { encodeReport, liveMarketAbi, parseConsensusPayload, sourceRequest, type CreHandlerResult } from "@movemarket/shared";
 import { decodeFunctionResult, encodeFunctionData, zeroAddress } from "viem";
 import {
-  RESOLUTION_REQUESTED_TOPIC, batchProblem, configSchema, decodeResolutionRequested, openViews, parsePayload,
+  RESOLUTION_REQUESTED_TOPIC, batchProblem, configSchema, decodeResolutionRequested, openViews,
   payloadFromBody, type Config, type MarketView,
 } from "./logic";
 
@@ -74,7 +74,7 @@ export const onResolutionRequested = (runtime: Runtime<Config>, log: EVMLog): st
   const payload = new HTTPClient()
     .sendRequest(runtime, fetchAndResolve, consensusIdenticalAggregation<string>())(gameRef, cfg.lichessBaseUrl, views)
     .result();
-  const pairs = parsePayload(payload);
+  const pairs = parseConsensusPayload(payload);
   const counts = { gameRef, resolved: pairs.ids.length, skipped: req.ids.length - pairs.ids.length };
   // Wajar kalau export Lichess masih tertinggal; resolver akan request ulang.
   if (pairs.ids.length === 0) return out({ ...counts, note: "nothing to resolve" });

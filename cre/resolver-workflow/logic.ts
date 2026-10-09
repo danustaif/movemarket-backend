@@ -1,8 +1,8 @@
 // Logika murni workflow resolver-workflow, tanpa CRE runtime (diuji dengan `bun test`).
 // Spesifikasi: source/docs/CRE_WORKFLOW.md bagian 4. Berjalan di QuickJS/WASM: tanpa API Node.
 import {
-  ENUMS, OUTCOME_CODE, encodeConsensusPayload, gameKeyOf, liveMarketAbi, parseLichessJson, parsePgn, resolve,
-  type CreWorkflowConfig, type MarketSpec, type ReportOutcomeCode, type SourceRequest,
+  ENUMS, encodeConsensusPayload, gameKeyOf, liveMarketAbi, resolve, snapshotFrom,
+  type CreWorkflowConfig, type MarketSpec, type SourceRequest,
 } from "@movemarket/shared";
 import {
   bytesToHex, decodeEventLog, getAbiItem, isAddress, toEventSelector, zeroAddress, type Address, type ContractFunctionReturnType, type Hex,
@@ -65,21 +65,6 @@ export const openViews = (views: readonly MarketView[], gameKey: Hex): MarketVie
  * Konsensus dilakukan atas string ini, bukan atas body mentah (CRE_WORKFLOW.md bagian 4).
  */
 export function payloadFromBody(body: string, format: SourceRequest["format"], views: readonly MarketView[]): string {
-  const game = format === "json" ? parseLichessJson(body) : parsePgn(body);
+  const game = snapshotFrom(format, body);
   return encodeConsensusPayload(views.map((v) => ({ id: v.id, outcome: resolve(game, v as MarketSpec) })));
-}
-
-const REPORT_CODES = new Set<number>(Object.values(OUTCOME_CODE));
-
-/** Kebalikan encodeConsensusPayload: "3:2,10:3" -> { ids, outcomes } untuk encodeReport. */
-export function parsePayload(payload: string): { ids: bigint[]; outcomes: ReportOutcomeCode[] } {
-  const ids: bigint[] = [];
-  const outcomes: ReportOutcomeCode[] = [];
-  for (const pair of payload ? payload.split(",") : []) {
-    const m = /^(\d+):(\d+)$/.exec(pair);
-    if (!m || !REPORT_CODES.has(Number(m[2]))) throw new Error(`bad consensus pair: ${pair}`);
-    ids.push(BigInt(m[1]!));
-    outcomes.push(Number(m[2]) as ReportOutcomeCode);
-  }
-  return { ids, outcomes };
 }
