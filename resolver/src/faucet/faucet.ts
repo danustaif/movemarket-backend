@@ -55,7 +55,7 @@ export function createFaucet(d: FaucetDeps): Faucet {
 
   // Reserve balance: saldo faucet harus >= 10 MON + jumlah kirim (faucetWalletMinWei untuk jumlah default).
   const canSend = async (value: bigint) => {
-    const floor = BigInt(F.resolverHardFloorWei) + value;
+    const floor = BigInt(F.monadReserveWei) + value;
     const min = floor > BigInt(F.faucetWalletMinWei) ? floor : BigInt(F.faucetWalletMinWei);
     const bal = await d.faucetBalance();
     if (bal < min) log("faucet_low", { balance: String(bal), min: String(min) });

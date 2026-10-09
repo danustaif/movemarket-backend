@@ -1,8 +1,8 @@
 // Client viem untuk Monad Testnet (chain dari viem/chains, bukan definisi manual).
 // Wallet resolver dan wallet faucet terpisah (SOT D19), masing-masing dengan nonceManager sendiri.
-import { liveMarketAbi, mockUsdcAbi } from "@movemarket/shared";
+import { SOT, liveMarketAbi, mockUsdcAbi } from "@movemarket/shared";
 import {
-  createPublicClient, createWalletClient, http, parseGwei, webSocket,
+  createPublicClient, createWalletClient, http, webSocket,
   type Abi, type Account, type Address, type Chain, type PublicClient, type Transport, type WalletClient,
 } from "viem";
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
@@ -38,9 +38,14 @@ export function createChainClients(cfg: Pick<Config, "rpcUrl" | "wsUrl">): Chain
   };
 }
 
-// ponytail: tambahan priority fee untuk lockMarkets tidak ada di SOT; 2x estimasi + 1 gwei cukup untuk
-// mendahului bet biasa. Pindahkan ke sot/constants.json kalau perlu disetel.
-const URGENT_TIP = parseGwei("1");
+const PRIORITY = SOT.gas.lockMarketsPriorityFee;
+
+/** Fee lockMarkets (SOT gas.lockMarketsPriorityFee): tip = estimasi x estimateMultiplier + extraTipWei. */
+export function lockMarketsFees(est: { maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }) {
+  const tip = est.maxPriorityFeePerGas * BigInt(PRIORITY.estimateMultiplier) + BigInt(PRIORITY.extraTipWei);
+  return { maxPriorityFeePerGas: tip, maxFeePerGas: est.maxFeePerGas + tip };
+}
+
 const NOT_SUPPORTED = /method.*(not found|not supported|does not exist)|-32601/i;
 
 /** Write untuk txQueue: writeContractSync (eth_sendRawTransactionSync), cadangan writeContract + receipt. */
@@ -49,12 +54,7 @@ export function contractWriter(
 ): { write: Write; resetNonce(): void } {
   let syncSupported = true;
   const write: Write = async (req: TxRequest) => {
-    let fees = {};
-    if (req.urgent) {
-      const est = await publicClient.estimateFeesPerGas();
-      const tip = est.maxPriorityFeePerGas * 2n + URGENT_TIP;
-      fees = { maxPriorityFeePerGas: tip, maxFeePerGas: est.maxFeePerGas + tip };
-    }
+    const fees = req.urgent ? lockMarketsFees(await publicClient.estimateFeesPerGas()) : {};
     const params = {
       address: addresses[req.target],
       abi: (req.target === "liveMarket" ? liveMarketAbi : mockUsdcAbi) as Abi,
