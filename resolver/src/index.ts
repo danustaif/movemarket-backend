@@ -14,6 +14,7 @@ import { loadConfig, secret, type Config } from "./config.ts";
 import { log } from "./log.ts";
 import type { GameState, Stop, TxQueue } from "./contracts.ts";
 import { createCreRunner } from "./cre/runner.ts";
+import { createMockCreRunner } from "./cre/mockRunner.ts";
 import { createFaucet } from "./faucet/faucet.ts";
 import { createGamePipeline } from "./games/pipeline.ts";
 import { createGameRegistry } from "./games/registry.ts";
@@ -142,9 +143,12 @@ const replayer = createReplayer({
 setInterval(() => replayer.tick().catch((err) => log("replay_tick_failed", { err: String(err) })), TICK_MS);
 
 // ----------------------------------------------------------------------- chain: watcher, CRE, pemulihan
+// mock (D23): resolver memanggil MockKeystoneForwarder langsung dengan logika workflow yang sama, tanpa CLI cre.
 const cre = cfg.creMode === "simulate"
   ? createCreRunner({ projectDir: resolvePath(cfg.creProjectDir), target: cfg.creTarget })
-  : undefined;
+  : cfg.creMode === "mock" && writer
+    ? createMockCreRunner({ client: publicClient, liveMarket: cfg.liveMarket, tx, fetchSnapshot: (ref) => fetchSnapshot(ref), nowSec })
+    : undefined;
 
 /** Provisional dari export resmi untuk partai yang tidak (lagi) dilacak, lalu masuk requester (2.11). */
 async function recoverGame(gameRef: string) {
