@@ -1,0 +1,24 @@
+# Ignore untuk backend/Dockerfile (build context = folder kerja). Allowlist: hanya yang dipakai image.
+*
+!source/shared
+!source/sot
+!backend/resolver
+!backend/cre
+
+**/node_modules
+**/.git
+**/.env
+**/.env.*
+!**/.env.example
+**/secrets.yaml
+**/*.keystore
+**/keystore
+**/*.wasm
+**/.cre_build_tmp.js
+**/.DS_Store
+backend/resolver/test
+backend/indexer
+fe
+smart-contract
+design/refs
+**/generated
