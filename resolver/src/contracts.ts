@@ -168,8 +168,8 @@ export interface CreRunner {
 export interface Faucet {
   /** Mint tUSDC + kirim MON. Kuota alamat hanya terpakai kalau MON terkirim. */
   onboard(address: Address, ip: string): Promise<FaucetResponse>;
-  /** Isi ulang gas kalau saldo < gasTopUpThresholdWei. */
-  topUpGas(address: Address): Promise<{ monTx: Hex }>;
+  /** Isi ulang gas kalau saldo < gasTopUpThresholdWei. Kuota per alamat dan per IP. */
+  topUpGas(address: Address, ip: string): Promise<{ monTx: Hex }>;
 }
 
 export class FaucetError extends Error {

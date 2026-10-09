@@ -20,23 +20,38 @@ export interface FaucetDeps {
   log?: (event: string, data: Record<string, unknown>) => void;
 }
 
-/** Jejak waktu per kunci dalam jendela 24 jam. */
+/**
+ * Jejak waktu per kunci dalam jendela 24 jam. take() mereservasi slot secara sinkron (sebelum await apa pun)
+ * dan mengembalikan fungsi rollback, supaya request paralel tidak bisa melewati batas.
+ */
 function quota(max: number, now: () => number) {
   const hits = new Map<string, number[]>();
   const live = (k: string) => (hits.get(k) ?? []).filter((t) => now() - t < DAY_MS);
   return {
     full: (k: string) => live(k).length >= max,
-    add: (k: string) => hits.set(k, [...live(k), now()]),
+    take(k: string): () => void {
+      const t = now();
+      hits.set(k, [...live(k), t]);
+      return () => {
+        const xs = hits.get(k) ?? [];
+        const i = xs.indexOf(t);
+        if (i >= 0) xs.splice(i, 1);
+      };
+    },
   };
 }
 
 export function createFaucet(d: FaucetDeps): Faucet {
   const now = d.now ?? Date.now;
   const log = d.log ?? (() => {});
-  const byAddress = quota(F.perAddressPer24h, now);
-  const byIp = quota(F.perIpPer24h, now);
+  const monByAddress = quota(F.perAddressPer24h, now); // terpakai hanya kalau MON terkirim
+  const mintByIp = quota(F.perIpPer24h, now);
   const gasByAddress = quota(F.gasTopUpPerAddressPer24h, now);
-  const busy = new Set<string>(); // satu permintaan per alamat dalam satu waktu
+  // ponytail: kuota gas per IP memakai perIpPer24h; batas MON global harian belum ada (dibatasi saldo wallet faucet).
+  const gasByIp = quota(F.perIpPer24h, now);
+  /** tUSDC sekali per alamat per 24 jam, terpisah dari kuota MON. Retry mengembalikan usdcTx lama. */
+  const minted = new Map<string, { tx: Hex; at: number }>();
+  const busy = new Set<string>(); // kunci per alamat selama request
 
   // Reserve balance: saldo faucet harus >= 10 MON + jumlah kirim (faucetWalletMinWei untuk jumlah default).
   const canSend = async (value: bigint) => {
@@ -57,23 +72,48 @@ export function createFaucet(d: FaucetDeps): Faucet {
 
   return {
     onboard: (address, ip) => guarded(address, async (key): Promise<FaucetResponse> => {
-      if (byAddress.full(key) || byIp.full(ip)) throw new FaucetError(429);
-      const usdcTx = await d.mintUsdc(address, d.usdcAmount);
-      byIp.add(ip);
-      if (!(await canSend(d.monAmountWei))) return { usdcTx, monTx: null };
-      const monTx = await d.sendMon(address, d.monAmountWei);
-      byAddress.add(key); // onboardingQuotaCountsOnlyIfMonSent
-      return { usdcTx, monTx };
+      if (monByAddress.full(key)) throw new FaucetError(429);
+      const prev = minted.get(key);
+      const prevTx = prev && now() - prev.at < DAY_MS ? prev.tx : undefined;
+      if (!prevTx && mintByIp.full(ip)) throw new FaucetError(429);
+      // Reservasi sinkron sebelum await; dilepas lagi kalau langkahnya tidak terjadi.
+      const releaseIp = prevTx ? () => {} : mintByIp.take(ip);
+      const releaseMon = monByAddress.take(key);
+      let usdcTx: Hex;
+      try {
+        usdcTx = prevTx ?? (await d.mintUsdc(address, d.usdcAmount));
+      } catch (err) {
+        releaseIp();
+        releaseMon();
+        throw err;
+      }
+      if (!prevTx) minted.set(key, { tx: usdcTx, at: now() });
+      try {
+        if (!(await canSend(d.monAmountWei))) {
+          releaseMon(); // onboardingQuotaCountsOnlyIfMonSent
+          return { usdcTx, monTx: null };
+        }
+        return { usdcTx, monTx: await d.sendMon(address, d.monAmountWei) };
+      } catch (err) {
+        releaseMon();
+        throw err;
+      }
     }),
 
-    topUpGas: (address) => guarded(address, async (key) => {
-      if ((await d.balanceOf(address)) >= BigInt(F.gasTopUpThresholdWei)) throw new FaucetError(409);
-      if (gasByAddress.full(key)) throw new FaucetError(429, "GAS_TOPUP_LIMIT");
-      const value = BigInt(F.gasTopUpWei);
-      if (!(await canSend(value))) throw new FaucetError(429, "FAUCET_FAILED");
-      const monTx = await d.sendMon(address, value);
-      gasByAddress.add(key);
-      return { monTx };
+    topUpGas: (address, ip) => guarded(address, async (key) => {
+      if (gasByAddress.full(key) || gasByIp.full(ip)) throw new FaucetError(429, "GAS_TOPUP_LIMIT");
+      const releaseA = gasByAddress.take(key);
+      const releaseI = gasByIp.take(ip);
+      const release = () => { releaseA(); releaseI(); };
+      try {
+        if ((await d.balanceOf(address)) >= BigInt(F.gasTopUpThresholdWei)) throw new FaucetError(409);
+        const value = BigInt(F.gasTopUpWei);
+        if (!(await canSend(value))) throw new FaucetError(429, "FAUCET_FAILED");
+        return { monTx: await d.sendMon(address, value) };
+      } catch (err) {
+        release();
+        throw err;
+      }
     }),
   };
 }

@@ -18,6 +18,8 @@ export interface Config extends ResolverConfig {
     viewerGraceSec: number;
   };
   requestMaxBatch: number;
+  /** true: IP klien dari entri pertama X-Forwarded-For (hanya di belakang proxy tepercaya). Default alamat socket. */
+  trustProxy: boolean;
   faucet: { usdcAmount: bigint; monAmountWei: bigint };
 }
 
@@ -44,6 +46,7 @@ const schema = z.object({
   AUTO_REPLAY_REQUIRES_VIEWER: bool(R.AUTO_REPLAY_REQUIRES_VIEWER),
   VIEWER_GRACE_SEC: int(R.VIEWER_GRACE_SEC),
   REQUEST_MAX_BATCH: int(R.REQUEST_MAX_BATCH),
+  TRUST_PROXY: bool(false),
   FAUCET_USDC_AMOUNT: big(SOT.faucet.usdcAmount),
   FAUCET_MON_AMOUNT: big(SOT.faucet.monAmountWei),
 });
@@ -92,6 +95,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       viewerGraceSec: e.VIEWER_GRACE_SEC,
     },
     requestMaxBatch: e.REQUEST_MAX_BATCH,
+    trustProxy: e.TRUST_PROXY,
     faucet: { usdcAmount: e.FAUCET_USDC_AMOUNT, monAmountWei: e.FAUCET_MON_AMOUNT },
   };
 }

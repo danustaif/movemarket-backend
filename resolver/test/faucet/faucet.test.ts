@@ -7,14 +7,18 @@ const B = "0x00000000000000000000000000000000000000bb" as const;
 const MON = 10n ** 18n;
 const H = (n: number) => `0x${String(n).padStart(64, "0")}` as const;
 
-function setup(o: { faucetBal?: bigint; userBal?: bigint } = {}) {
+function setup(o: { faucetBal?: bigint; userBal?: bigint; gate?: Promise<void>; failMint?: boolean } = {}) {
   const sent: { to: string; value: bigint }[] = [];
   const minted: string[] = [];
   let clock = 1_000_000;
   const f = createFaucet({
     usdcAmount: 50_000_000n, monAmountWei: MON / 2n,
-    mintUsdc: async (to) => { minted.push(to); return H(minted.length); },
-    sendMon: async (to, value) => { sent.push({ to, value }); return H(100 + sent.length); },
+    mintUsdc: async (to) => {
+      await o.gate;
+      if (o.failMint) throw new Error("mint revert");
+      minted.push(to); return H(minted.length);
+    },
+    sendMon: async (to, value) => { await o.gate; sent.push({ to, value }); return H(100 + sent.length); },
     faucetBalance: async () => o.faucetBal ?? 20n * MON,
     balanceOf: async () => o.userBal ?? 0n,
     now: () => clock,
@@ -40,10 +44,36 @@ describe("Faucet onboard", () => {
   });
 
   test("wallet faucet di bawah 10 MON + jumlah kirim: hanya tUSDC, kuota alamat tidak terpakai", async () => {
-    const { f, sent } = setup({ faucetBal: 10n * MON + MON / 2n - 1n });
+    const o = { faucetBal: 10n * MON + MON / 2n - 1n };
+    const { f, sent, minted } = setup(o);
     expect(await f.onboard(A, "ip")).toEqual({ usdcTx: H(1), monTx: null });
     expect(sent).toHaveLength(0);
-    expect((await f.onboard(A, "ip")).usdcTx).toBe(H(2)); // boleh coba lagi
+    // Coba lagi: tUSDC tidak di-mint ulang (kuota tUSDC terpisah), usdcTx lama dikembalikan, MON dicoba lagi.
+    expect(await f.onboard(A, "ip")).toEqual({ usdcTx: H(1), monTx: null });
+    o.faucetBal = 20n * MON;
+    expect(await f.onboard(A, "ip2")).toEqual({ usdcTx: H(1), monTx: H(101) });
+    expect(minted).toEqual([A]);
+    expect(await status(f.onboard(A, "ip3"))).toBe(429);
+  });
+
+  test("mint gagal: kuota tidak terpakai", async () => {
+    const o = { failMint: true };
+    const { f } = setup(o);
+    expect(await status(f.onboard(A, "ip"))).toBe(-1);
+    o.failMint = false;
+    expect((await f.onboard(A, "ip")).monTx).toBe(H(101));
+  });
+
+  test("request paralel dari IP yang sama tidak melewati batas (reservasi sebelum await)", async () => {
+    let open!: () => void;
+    const { f, minted } = setup({ gate: new Promise<void>((r) => (open = r)) });
+    const addrs = Array.from({ length: 8 }, (_, i) => `0x${String(i + 1).padStart(40, "0")}` as `0x${string}`);
+    const all = addrs.map((a) => status(f.onboard(a, "9.9.9.9")));
+    open();
+    const codes = await Promise.all(all);
+    expect(codes.filter((c) => c === 0)).toHaveLength(5);
+    expect(codes.filter((c) => c === 429)).toHaveLength(3);
+    expect(minted).toHaveLength(5);
   });
 
   test("5 kali per IP per 24 jam", async () => {
@@ -56,16 +86,28 @@ describe("Faucet onboard", () => {
 describe("Faucet topUpGas", () => {
   test("409 kalau saldo masih di atas ambang", async () => {
     const { f } = setup({ userBal: MON / 20n });
-    expect(await status(f.topUpGas(A))).toBe(409);
+    expect(await status(f.topUpGas(A, "ip"))).toBe(409);
   });
 
   test("kirim gasTopUpWei, maksimal 3 per alamat per 24 jam dengan kode GAS_TOPUP_LIMIT, kuota terpisah", async () => {
     const { f, sent } = setup({ userBal: 0n });
     await f.onboard(A, "ip");
-    for (let i = 0; i < 3; i++) await f.topUpGas(A);
+    for (let i = 0; i < 3; i++) await f.topUpGas(A, "ip");
     expect(sent.slice(1).every((s) => s.value === MON / 2n)).toBe(true);
-    const err = await f.topUpGas(A).catch((e) => e);
+    const err = await f.topUpGas(A, "ip").catch((e) => e);
     expect(err).toBeInstanceOf(FaucetError);
     expect([err.status, err.code]).toEqual([429, "GAS_TOPUP_LIMIT"]);
+  });
+
+  test("kuota isi ulang gas per IP (perIpPer24h), juga untuk request paralel", async () => {
+    let open!: () => void;
+    const { f, sent } = setup({ userBal: 0n, gate: new Promise<void>((r) => (open = r)) });
+    const addrs = Array.from({ length: 7 }, (_, i) => `0x${String(i + 1).padStart(40, "0")}` as `0x${string}`);
+    const all = addrs.map((a) => f.topUpGas(a, "6.6.6.6").then(() => 0, (e) => `${e.status}:${e.code}`));
+    open();
+    const codes = await Promise.all(all);
+    expect(codes.filter((c) => c === 0)).toHaveLength(5);
+    expect(codes.filter((c) => c === "429:GAS_TOPUP_LIMIT")).toHaveLength(2);
+    expect(sent).toHaveLength(5);
   });
 });
