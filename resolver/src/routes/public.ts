@@ -4,6 +4,7 @@ import {
 } from "@movemarket/shared";
 import { Hono, type Context } from "hono";
 import { isAddress, type Address } from "viem";
+import { log } from "../log.ts";
 import { FaucetError, type Faucet, type GameRegistry, type GameState, type MarketStore, type SseHub, type TrackedMarket } from "../contracts.ts";
 
 export interface PublicDeps {
@@ -60,7 +61,7 @@ export function publicRoutes(d: PublicDeps): Hono {
       return c.json(await fn(d.faucet, address));
     } catch (err) {
       if (err instanceof FaucetError) return apiError(c, err.status, err.message, err.code);
-      console.error(JSON.stringify({ event: "faucet_failed", err: String(err) }));
+      log("faucet_failed", { err: String(err) });
       return apiError(c, 500, "faucet gagal", "FAUCET_FAILED");
     }
   };

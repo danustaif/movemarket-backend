@@ -139,4 +139,22 @@ describe("route admin", () => {
     ]);
     expect((await app.request("/admin/void", post({ marketIds: ["x"] }, ADMIN))).status).toBe(400);
   });
+
+  test("error aksi admin: 502 dengan pesan generik, URL RPC tidak bocor; state diredaksi", async () => {
+    const rpc = "https://monad-testnet.g.alchemy.com/v2/AbCdSecret123";
+    const { app } = setup({
+      admin: {
+        track: async () => { throw new Error(`HTTP request failed. URL: ${rpc}`); },
+        untrack: () => {}, replay: async () => REF, void: async () => TX,
+        state: () => ({ config: { rpcUrl: rpc, wsUrl: "wss://rpc.example.io/ws?apikey=k3y" } }),
+      },
+    });
+    const res = await app.request("/admin/track", post({ source: "broadcast", roundId: "AbCd1234" }, ADMIN));
+    expect(res.status).toBe(502);
+    expect(JSON.stringify(await res.json())).not.toContain("AbCdSecret123");
+    const state = await (await app.request("/admin/state", { headers: ADMIN })).text();
+    expect(state).not.toContain("AbCdSecret123");
+    expect(state).not.toContain("k3y");
+    expect(JSON.parse(state).config.rpcUrl).toBe("https://monad-testnet.g.alchemy.com/***");
+  });
 });

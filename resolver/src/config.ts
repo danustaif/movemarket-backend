@@ -100,7 +100,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   };
 }
 
-export type SecretName = "RESOLVER_PRIVATE_KEY" | "FAUCET_PRIVATE_KEY" | "ADMIN_TOKEN";
+/** Satu-satunya daftar env rahasia: tidak masuk Config, tidak diteruskan ke proses anak (runner CRE). */
+export const SECRET_ENV = ["RESOLVER_PRIVATE_KEY", "FAUCET_PRIVATE_KEY", "ADMIN_TOKEN"] as const;
+export type SecretName = (typeof SECRET_ENV)[number];
+export type PrivateKeyName = Extract<SecretName, `${string}_PRIVATE_KEY`>;
 
 /** Dibaca saat dipakai, tidak disimpan di Config. undefined kalau kosong. */
 export function secret(name: SecretName, env: Record<string, string | undefined> = process.env): string | undefined {
@@ -109,7 +112,7 @@ export function secret(name: SecretName, env: Record<string, string | undefined>
 }
 
 /** Private key 32 byte hex. Throw tanpa mencetak nilai kalau formatnya salah. */
-export function privateKey(name: "RESOLVER_PRIVATE_KEY" | "FAUCET_PRIVATE_KEY", env = process.env): Hex | undefined {
+export function privateKey(name: PrivateKeyName, env = process.env): Hex | undefined {
   const v = secret(name, env);
   if (v === undefined) return undefined;
   const hex = v.startsWith("0x") ? v : `0x${v}`;

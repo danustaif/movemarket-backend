@@ -1,6 +1,7 @@
 // Aplikasi Hono: CORS dari CORS_ORIGIN, route publik di /, route admin di /admin.
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { log } from "./log.ts";
 import { adminRoutes, type AdminActions } from "./routes/admin.ts";
 import { apiError, publicRoutes, type PublicDeps } from "./routes/public.ts";
 
@@ -22,7 +23,7 @@ export function createApp(d: AppDeps): Hono {
   app.route("/", publicRoutes(d));
   app.notFound((c) => apiError(c, 404, "not found"));
   app.onError((err, c) => {
-    console.error(JSON.stringify({ event: "http_error", path: c.req.path, err: String(err) }));
+    log("http_error", { path: c.req.path, err: String(err) });
     return apiError(c, 500, "internal error");
   });
   return app;

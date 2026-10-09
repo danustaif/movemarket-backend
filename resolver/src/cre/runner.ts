@@ -2,13 +2,13 @@
 // yang bloknya sudah finalized (SOT D20). Konkurensi 1 (CRE_RUN_CONCURRENCY), timeout CRE_RUN_TIMEOUT_SEC.
 import { SOT, type CreHandlerResult } from "@movemarket/shared";
 import type { Hex } from "viem";
+import { SECRET_ENV } from "../config.ts";
 import type { CreRunner } from "../contracts.ts";
 
 export type Exec = (cmd: string[], opts: { cwd: string; timeoutMs: number }) =>
   Promise<{ exitCode: number | null; stdout: string; stderr: string }>;
 
 const MARKER = "Workflow Simulation Result:";
-const SECRET_ENV = ["RESOLVER_PRIVATE_KEY", "FAUCET_PRIVATE_KEY", "ADMIN_TOKEN"];
 
 /** Ambil nilai kembali handler: baris setelah penanda, string JSON (bisa di-encode dua kali). */
 export function parseCreOutput(stdout: string): CreHandlerResult | null {

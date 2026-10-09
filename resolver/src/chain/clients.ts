@@ -7,7 +7,7 @@ import {
 } from "viem";
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
-import { privateKey, type Config } from "../config.ts";
+import { privateKey, type Config, type PrivateKeyName } from "../config.ts";
 import type { TxRequest, Write } from "./txQueue.ts";
 
 export type Wallet = WalletClient<Transport, Chain, Account>;
@@ -24,7 +24,7 @@ export interface ChainClients {
 
 export function createChainClients(cfg: Pick<Config, "rpcUrl" | "wsUrl">): ChainClients {
   const transport = http(cfg.rpcUrl);
-  const wallet = (name: "RESOLVER_PRIVATE_KEY" | "FAUCET_PRIVATE_KEY") => {
+  const wallet = (name: PrivateKeyName) => {
     const key = privateKey(name);
     return key
       ? createWalletClient({ account: privateKeyToAccount(key, { nonceManager }), chain: monadTestnet, transport })

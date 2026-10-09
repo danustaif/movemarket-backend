@@ -11,6 +11,7 @@ import { contractWriter, createChainClients } from "./chain/clients.ts";
 import { createTxQueue } from "./chain/txQueue.ts";
 import { createChainWatcher } from "./chain/watcher.ts";
 import { loadConfig, secret, type Config } from "./config.ts";
+import { log } from "./log.ts";
 import type { GameState, Stop, TxQueue } from "./contracts.ts";
 import { createCreRunner } from "./cre/runner.ts";
 import { createFaucet } from "./faucet/faucet.ts";
@@ -26,8 +27,6 @@ import { createReplayer } from "./replay/replayer.ts";
 import { toMarketDto } from "./routes/public.ts";
 import { createSseHub } from "./sse/hub.ts";
 
-const log = (event: string, data: Record<string, unknown> = {}) =>
-  console.log(JSON.stringify({ t: new Date().toISOString(), event, ...data }, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
 
 let cfg: Config;
 let chain: ReturnType<typeof createChainClients>;
@@ -35,7 +34,7 @@ try {
   cfg = loadConfig();
   chain = createChainClients(cfg);
 } catch (err) {
-  console.error(JSON.stringify({ event: "config_error", err: String((err as Error).message) }));
+  log("config_error", { err: String((err as Error).message) });
   process.exit(1);
 }
 
