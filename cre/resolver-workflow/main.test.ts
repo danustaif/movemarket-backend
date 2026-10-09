@@ -6,12 +6,10 @@ import { addContractMock, EvmMock, HttpActionsMock, newTestRuntime, test } from 
 import { bytesToHex, encodeAbiParameters, hexToBytes, parseAbiParameters } from "viem";
 import type { Config } from "./logic";
 import { initWorkflow, onResolutionRequested } from "./main";
+import { GAME_KEY, GAME_REF, TOPIC0 } from "./testSot";
 
 const MONAD_TESTNET_SELECTOR = 2183018362218727504n; // `cre workflow supported-chains`, 10 Okt 2026
 const LIVE_MARKET = "0x1111111111111111111111111111111111111111";
-const GAME_REF = "lichess:game:e9SJcXpJ";
-const GAME_KEY = "0xf7d3f3f6514378c5b767be2d036c18b0aa5bba84ae50a0bfdaad7591841aef1f"; // sot/test-vectors.json
-const TOPIC0 = "0xee0a59e1d791944ec08c9b8362a29a47dea1e8b5c268d11762fbbd929632a586";
 const EXPORT_URL = "https://lichess.org/game/export/e9SJcXpJ?moves=true&clocks=false&evals=false&opening=false";
 const TX_HASH = `0x${"ab".repeat(32)}` as const;
 const REPORT_METADATA_LEN = 109;

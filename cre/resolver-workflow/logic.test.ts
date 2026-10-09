@@ -2,11 +2,7 @@ import { expect, test } from "bun:test";
 import { SOT } from "@movemarket/shared";
 import { encodeAbiParameters, hexToBytes, parseAbiParameters } from "viem";
 import { type MarketView, batchProblem, configSchema, openViews, parsePayload, payloadFromBody, decodeResolutionRequested, RESOLUTION_REQUESTED_TOPIC } from "./logic";
-
-// Nilai independen dari sot/test-vectors.json (gameKey) dan docs/CRE_WORKFLOW.md bagian 3 (topic0).
-const GAME_REF = "lichess:game:e9SJcXpJ";
-const GAME_KEY = "0xf7d3f3f6514378c5b767be2d036c18b0aa5bba84ae50a0bfdaad7591841aef1f";
-const TOPIC0 = "0xee0a59e1d791944ec08c9b8362a29a47dea1e8b5c268d11762fbbd929632a586";
+import { GAME_KEY, GAME_REF, TOPIC0 } from "./testSot";
 
 const logOf = (gameKey: `0x${string}`, gameRef: string, ids: bigint[]) => ({
   topics: [hexToBytes(TOPIC0), hexToBytes(gameKey)],
