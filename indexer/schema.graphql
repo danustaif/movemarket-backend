@@ -1,0 +1,71 @@
+# Kontrak skema Envio (source/docs/INDEXER.md bagian 2).
+# `envio init` membuat ulang file ini; setelah init, kembalikan dengan `git checkout indexer/schema.graphql`.
+
+enum MarketStatus {
+  OPEN
+  RESOLVED
+  VOIDED
+}
+
+type Game {
+  id: ID!                     # gameKey (hex)
+  gameRef: String!
+  marketCount: Int!
+  totalVolume: BigInt!
+  firstSeenAt: BigInt!
+}
+
+type Market {
+  id: ID!                     # market id (string desimal)
+  idNum: BigInt!              # id sebagai angka, untuk pengurutan
+  game: Game!
+  gameRef: String!
+  marketType: Int!
+  side: Int!
+  fromPly: Int!
+  toPly: Int!
+  lockTime: BigInt!
+  resolveDeadline: BigInt!
+  status: MarketStatus!
+  outcome: Int!               # 0 NONE, 1 YES, 2 NO, 3 VOID
+  voidReason: Int
+  poolYes: BigInt!
+  poolNo: BigInt!
+  betCount: Int!
+  resolutionRequested: Boolean!
+  createdAt: BigInt!
+  createdTx: String!
+  resolvedAt: BigInt
+  resolvedTx: String
+}
+
+type Bet {
+  id: ID!                     # txHash-logIndex
+  market: Market!
+  user: User!
+  yes: Boolean!
+  amount: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+}
+
+type Position {
+  id: ID!                     # marketId-user
+  market: Market!
+  user: User!
+  stakeYes: BigInt!
+  stakeNo: BigInt!
+  payout: BigInt!             # klaim atau refund
+  settled: Boolean!
+  createdAt: BigInt!
+}
+
+type User {
+  id: ID!                     # address lowercase
+  totalStaked: BigInt!
+  totalPayout: BigInt!
+  netProfit: BigInt!
+  betCount: Int!
+  winCount: Int!
+  firstSeenAt: BigInt!
+}

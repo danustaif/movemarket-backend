@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.*
+!.env.example
+secrets.yaml
+*.keystore
+indexer/generated/
+.DS_Store

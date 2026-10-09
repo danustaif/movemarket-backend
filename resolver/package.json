@@ -1,0 +1,16 @@
+{
+  "name": "movemarket-resolver",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@movemarket/shared": "file:../../source/shared",
+    "viem": "^2.57.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  }
+}

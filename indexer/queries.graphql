@@ -1,0 +1,21 @@
+# Query yang dipakai frontend (source/docs/INDEXER.md bagian 4). Bentuk hasil: IndexedMarket,
+# IndexedPosition, LeaderboardRow di @movemarket/shared.
+
+query MarketsByGame($gameRef: String!) {
+  Market(where: { gameRef: { _eq: $gameRef } }, order_by: { idNum: desc }, limit: 50) {
+    id gameRef marketType side fromPly toPly lockTime resolveDeadline status outcome voidReason poolYes poolNo resolvedTx
+  }
+}
+
+query MyPositions($user: String!) {
+  Position(where: { user_id: { _eq: $user } }, order_by: { createdAt: desc }, limit: 100) {
+    id stakeYes stakeNo payout settled
+    market { id gameRef marketType side fromPly toPly lockTime resolveDeadline status outcome voidReason poolYes poolNo resolvedTx }
+  }
+}
+
+query Leaderboard {
+  User(order_by: { netProfit: desc }, limit: 20) {
+    id netProfit betCount winCount
+  }
+}
