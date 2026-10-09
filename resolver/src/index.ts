@@ -215,6 +215,7 @@ const faucet = chainReady && resolverWallet && faucetWallet
     faucetBalance: () => publicClient.getBalance({ address: faucetWallet.account.address }),
     balanceOf: (address) => publicClient.getBalance({ address }),
     log,
+    sharesResolverWallet: faucetWallet.account.address === resolverWallet.account.address,
   })
   : undefined;
 

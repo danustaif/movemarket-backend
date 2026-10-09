@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { SOT } from "@movemarket/shared";
 import { createFaucet } from "../../src/faucet/faucet.ts";
 import { FaucetError } from "../../src/contracts.ts";
 
@@ -7,7 +8,7 @@ const B = "0x00000000000000000000000000000000000000bb" as const;
 const MON = 10n ** 18n;
 const H = (n: number) => `0x${String(n).padStart(64, "0")}` as const;
 
-function setup(o: { faucetBal?: bigint; userBal?: bigint; gate?: Promise<void>; failMint?: boolean } = {}) {
+function setup(o: { faucetBal?: bigint; userBal?: bigint; gate?: Promise<void>; failMint?: boolean; shared?: boolean } = {}) {
   const sent: { to: string; value: bigint }[] = [];
   const minted: string[] = [];
   let clock = 1_000_000;
@@ -22,6 +23,7 @@ function setup(o: { faucetBal?: bigint; userBal?: bigint; gate?: Promise<void>; 
     faucetBalance: async () => o.faucetBal ?? 20n * MON,
     balanceOf: async () => o.userBal ?? 0n,
     now: () => clock,
+    sharesResolverWallet: o.shared,
   });
   return { f, sent, minted, advance: (ms: number) => (clock += ms) };
 }
@@ -54,6 +56,20 @@ describe("Faucet onboard", () => {
     expect(await f.onboard(A, "ip2")).toEqual({ usdcTx: H(1), monTx: H(101) });
     expect(minted).toEqual([A]);
     expect(await status(f.onboard(A, "ip3"))).toBe(429);
+  });
+
+  test("wallet faucet = wallet resolver: lantai minResolverMonWei + jumlah kirim, bukan reserve 10 MON", async () => {
+    const floor = BigInt(SOT.faucet.minResolverMonWei) + MON / 2n;
+    // 15 MON cukup untuk wallet faucet terpisah, tapi akan menurunkan resolver di bawah 20 MON.
+    const low = setup({ faucetBal: 15n * MON, shared: true });
+    expect((await low.f.onboard(A, "1.1.1.1")).monTx).toBeNull();
+    expect(low.sent).toEqual([]);
+    const ok = setup({ faucetBal: floor, shared: true });
+    expect((await ok.f.onboard(A, "1.1.1.1")).monTx).toBe(H(101));
+    // Isi ulang gas memakai lantai yang sama.
+    expect(await status(setup({ faucetBal: 15n * MON, shared: true }).f.topUpGas(A, "1.1.1.1"))).toBe(429);
+    // Tanpa flag, 15 MON tetap boleh mengirim.
+    expect((await setup({ faucetBal: 15n * MON }).f.onboard(A, "1.1.1.1")).monTx).toBe(H(101));
   });
 
   test("mint gagal: kuota tidak terpakai", async () => {

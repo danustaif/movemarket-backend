@@ -18,6 +18,8 @@ export interface FaucetDeps {
   balanceOf(address: Address): Promise<bigint>;
   now?: () => number;
   log?: (event: string, data: Record<string, unknown>) => void;
+  /** Wallet faucet = wallet resolver: lantai naik ke minResolverMonWei supaya faucet tidak menguras gas resolver. */
+  sharesResolverWallet?: boolean;
 }
 
 /**
@@ -54,8 +56,10 @@ export function createFaucet(d: FaucetDeps): Faucet {
   const busy = new Set<string>(); // kunci per alamat selama request
 
   // Reserve balance: saldo faucet harus >= 10 MON + jumlah kirim (faucetWalletMinWei untuk jumlah default).
+  // Kalau wallet dipakai bersama resolver, lantainya ambang alert resolver (D19) + jumlah kirim.
+  const reserve = BigInt(d.sharesResolverWallet ? F.minResolverMonWei : F.monadReserveWei);
   const canSend = async (value: bigint) => {
-    const floor = BigInt(F.monadReserveWei) + value;
+    const floor = reserve + value;
     const min = floor > BigInt(F.faucetWalletMinWei) ? floor : BigInt(F.faucetWalletMinWei);
     const bal = await d.faucetBalance();
     if (bal < min) log("faucet_low", { balance: String(bal), min: String(min) });
