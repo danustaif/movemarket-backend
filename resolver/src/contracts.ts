@@ -156,6 +156,11 @@ export type LiveMarketEvent = {
  */
 export interface ChainWatcher {
   subscribe(fn: (ev: LiveMarketEvent, finality: "proposed" | "finalized") => void): Stop;
+  /**
+   * Log LiveMarket dari receipt transaksi resolver sendiri, dikirim "proposed" seketika (tanpa menunggu
+   * WebSocket atau polling). Event yang sama dari sumber lain tidak dikirim proposed lagi.
+   */
+  receipt(r: TransactionReceipt): void;
 }
 
 // ======================================================================= CRE

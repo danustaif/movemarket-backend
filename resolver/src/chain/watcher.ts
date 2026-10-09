@@ -1,9 +1,10 @@
 // Watcher event LiveMarket (RESOLVER_SERVICE.md 2.6, SOT D20).
-// - proposed: dari WebSocket eth_subscribe logs (realtime, untuk tampilan).
+// - proposed: dari receipt transaksi resolver sendiri (receipt()), dari WebSocket eth_subscribe logs, atau
+//   tanpa WebSocket dari polling getLogs blok latest tiap SOT.network.blockTimeMs (untuk tampilan).
 // - finalized: getLogs atas rentang blok yang sudah finalized. Ini juga cadangan kalau WebSocket putus
 //   (event yang belum pernah terlihat dikirim proposed lalu finalized) dan pemulihan sejak DEPLOY_BLOCK.
 import { SOT, liveMarketAbi } from "@movemarket/shared";
-import type { Address, Hex } from "viem";
+import { isAddressEqual, parseEventLogs, type Address, type Hex, type TransactionReceipt } from "viem";
 import type { ChainWatcher, LiveMarketEvent, Stop } from "../contracts.ts";
 
 /** Bentuk log hasil decode viem (getContractEvents / watchContractEvent). */
@@ -17,6 +18,7 @@ export interface RawLog {
 
 export interface WatcherClient {
   getBlock(a: { blockTag: "finalized" }): Promise<{ number: bigint | null }>;
+  getBlockNumber(): Promise<bigint>;
   getContractEvents(a: { address: Address; abi: typeof liveMarketAbi; fromBlock: bigint; toBlock: bigint }): Promise<readonly RawLog[]>;
 }
 export interface WatcherWsClient {
@@ -34,7 +36,10 @@ export function createChainWatcher(o: {
   tickMs?: number;
   /** ponytail: batas range getLogs RPC tidak ada di SOT; mulai di sini, dibagi dua tiap kali ditolak. */
   maxRange?: bigint;
+  /** Interval polling proposed tanpa WebSocket. */
+  pollMs?: number;
   onError?: (e: unknown) => void;
+  log?: (event: string, data: Record<string, unknown>) => void;
 }): ChainWatcher & { cursor(): bigint } {
   const listeners = new Set<Listener>();
   const proposed = new Set<string>();
@@ -42,6 +47,10 @@ export function createChainWatcher(o: {
   let range = o.maxRange ?? 1000n;
   let cursor = o.fromBlock - 1n; // blok finalized terakhir yang sudah diproses
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const pollMs = o.pollMs ?? SOT.network.blockTimeMs;
+  let pollDelay = pollMs;
+  let pollCursor: bigint | undefined; // blok latest terakhir yang sudah dibaca polling
+  let pollTimer: ReturnType<typeof setTimeout> | undefined;
   let unwatch: (() => void) | undefined;
 
   const key = (l: RawLog) => `${l.transactionHash}:${l.logIndex}`;
@@ -54,7 +63,8 @@ export function createChainWatcher(o: {
     }
   };
 
-  const onWsLogs = (logs: RawLog[]) => {
+  /** proposed dari WebSocket, polling, atau receipt sendiri; kunci txHash:logIndex mencegah duplikat. */
+  const onProposed = (logs: readonly RawLog[]) => {
     for (const l of logs) {
       if (l.blockNumber == null || l.blockNumber <= cursor) continue; // sudah lewat jalur finalized
       const k = key(l);
@@ -90,15 +100,41 @@ export function createChainWatcher(o: {
     if (listeners.size) timer = setTimeout(tick, tickMs);
   };
 
+  /** Tanpa WebSocket: getLogs sejak blok terakhir yang dilihat sampai latest. Mulai dari head saat start. */
+  const poll = async () => {
+    try {
+      const head = await o.client.getBlockNumber();
+      if (pollCursor === undefined) pollCursor = head;
+      let from = (pollCursor > cursor ? pollCursor : cursor) + 1n;
+      if (head - from >= range) from = head - range + 1n; // tertinggal jauh: yang lebih lama datang lewat jalur finalized
+      if (from <= head) {
+        onProposed(await o.client.getContractEvents({ address: o.address, abi: liveMarketAbi, fromBlock: from, toBlock: head }));
+        pollCursor = head;
+      }
+      pollDelay = pollMs;
+    } catch (e) {
+      o.onError?.(e);
+      pollDelay = Math.min(pollDelay * 2, SOT.resolver.WATCHER_POLL_MAX_BACKOFF_SEC * 1000);
+    }
+    if (listeners.size) pollTimer = setTimeout(poll, pollDelay);
+  };
+
   const start = () => {
     unwatch = o.wsClient?.watchContractEvent({
-      address: o.address, abi: liveMarketAbi, onLogs: onWsLogs, onError: (e) => o.onError?.(e),
+      address: o.address, abi: liveMarketAbi, onLogs: onProposed, onError: (e) => o.onError?.(e),
     });
+    if (!o.wsClient) {
+      o.log?.("watcher_polling", { pollMs });
+      pollTimer = setTimeout(poll, 0);
+    }
     timer = setTimeout(tick, 0);
   };
 
   return {
     cursor: () => cursor,
+    receipt(r) {
+      onProposed(parseEventLogs({ abi: liveMarketAbi, logs: r.logs.filter((l) => isAddressEqual(l.address, o.address)) }));
+    },
     subscribe(fn): Stop {
       listeners.add(fn);
       if (listeners.size === 1) start();
@@ -106,6 +142,7 @@ export function createChainWatcher(o: {
         listeners.delete(fn);
         if (listeners.size) return;
         clearTimeout(timer);
+        clearTimeout(pollTimer);
         unwatch?.();
       };
     },
