@@ -65,17 +65,17 @@ export function createFaucet(d: FaucetDeps): Faucet {
   const guarded = async <T>(address: string, fn: (key: string) => Promise<T>): Promise<T> => {
     if (!isAddress(address)) throw new FaucetError(400);
     const key = address.toLowerCase();
-    if (busy.has(key)) throw new FaucetError(429);
+    if (busy.has(key)) throw new FaucetError(429, "FAUCET_FAILED");
     busy.add(key);
     try { return await fn(key); } finally { busy.delete(key); }
   };
 
   return {
     onboard: (address, ip) => guarded(address, async (key): Promise<FaucetResponse> => {
-      if (monByAddress.full(key)) throw new FaucetError(429);
+      if (monByAddress.full(key)) throw new FaucetError(429, "FAUCET_FAILED");
       const prev = minted.get(key);
       const prevTx = prev && now() - prev.at < DAY_MS ? prev.tx : undefined;
-      if (!prevTx && mintByIp.full(ip)) throw new FaucetError(429);
+      if (!prevTx && mintByIp.full(ip)) throw new FaucetError(429, "FAUCET_FAILED");
       // Reservasi sinkron sebelum await; dilepas lagi kalau langkahnya tidak terjadi.
       const releaseIp = prevTx ? () => {} : mintByIp.take(ip);
       const releaseMon = monByAddress.take(key);

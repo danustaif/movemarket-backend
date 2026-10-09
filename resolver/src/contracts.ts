@@ -180,7 +180,10 @@ export interface Faucet {
   topUpGas(address: Address, ip: string): Promise<{ monTx: Hex }>;
 }
 
+/** 429 selalu membawa kode (USER_FLOW): GAS_TOPUP_LIMIT untuk kuota isi ulang gas, selain itu FAUCET_FAILED. */
 export class FaucetError extends Error {
+  constructor(status: 400 | 409);
+  constructor(status: 429, code: "GAS_TOPUP_LIMIT" | "FAUCET_FAILED");
   constructor(readonly status: 400 | 409 | 429, readonly code?: "GAS_TOPUP_LIMIT" | "FAUCET_FAILED") {
     super(code ?? String(status));
   }

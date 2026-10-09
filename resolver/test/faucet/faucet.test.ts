@@ -83,6 +83,22 @@ describe("Faucet onboard", () => {
   });
 });
 
+const errCode = (p: Promise<unknown>) => p.then(() => "ok", (e) => (e instanceof FaucetError ? `${e.status}:${e.code}` : "other"));
+
+test("setiap 429 onboarding membawa kode FAUCET_FAILED (USER_FLOW: faucet gagal / limit); request bersamaan juga", async () => {
+  let open!: () => void;
+  const { f, advance } = setup({ gate: new Promise<void>((r) => (open = r)) });
+  const first = f.onboard(A, "ip");
+  expect(await errCode(f.onboard(A, "ip"))).toBe("429:FAUCET_FAILED"); // alamat sedang diproses
+  expect(await errCode(f.topUpGas(A, "ip"))).toBe("429:FAUCET_FAILED");
+  open();
+  await first;
+  expect(await errCode(f.onboard(A, "ip"))).toBe("429:FAUCET_FAILED"); // kuota alamat
+  advance(1);
+  for (let i = 0; i < 4; i++) await f.onboard(`0x${String(i + 1).padStart(40, "0")}` as `0x${string}`, "ip");
+  expect(await errCode(f.onboard(B, "ip"))).toBe("429:FAUCET_FAILED"); // kuota IP
+});
+
 describe("Faucet topUpGas", () => {
   test("409 kalau saldo masih di atas ambang", async () => {
     const { f } = setup({ userBal: MON / 20n });
