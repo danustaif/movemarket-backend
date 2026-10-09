@@ -1,7 +1,7 @@
 {
   "mode": "local-simulation",
   "chainSelectorName": "monad-testnet",
-  "liveMarketAddress": "0x0000000000000000000000000000000000000000",
+  "liveMarketAddress": "0xA40F0D8f2e70bfd8F52B4d08089bD083cBdDB9a9",
   "gasLimit": "1000000",
   "maxMarketsPerReport": 8,
   "lichessBaseUrl": "https://lichess.org"

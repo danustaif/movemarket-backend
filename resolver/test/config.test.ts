@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { SOT } from "@movemarket/shared";
 import { loadConfig, privateKey } from "../src/config.ts";
 
 describe("config", () => {
@@ -7,7 +8,14 @@ describe("config", () => {
     expect(c.port).toBe(8787);
     expect(c.replay.startPly).toBe(20);
     expect(c.faucet.usdcAmount).toBe(50_000_000n);
-    expect(c.missing).toEqual(["LIVE_MARKET_ADDRESS", "MOCK_USDC_ADDRESS", "DEPLOY_BLOCK"]);
+    // Env kosong jatuh ke alamat SOT (diisi sync-sot setelah deploy); yang hilang hanya yang SOT-nya juga null.
+    const A = SOT.addresses;
+    expect(c.missing).toEqual([
+      ...(A.liveMarket ? [] : ["LIVE_MARKET_ADDRESS"]),
+      ...(A.mockUsdc ? [] : ["MOCK_USDC_ADDRESS"]),
+      ...(A.deployBlock == null ? ["DEPLOY_BLOCK"] : []),
+    ]);
+    if (A.liveMarket) expect(c.liveMarket).toBe(A.liveMarket as `0x${string}`);
     expect(JSON.stringify(c, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("rahasia");
   });
 
