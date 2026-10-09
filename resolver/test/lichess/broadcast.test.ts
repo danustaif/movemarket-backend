@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { createBroadcastFeed, parseRoundInfo, parseRoundPgn } from "../../src/lichess/broadcast.ts";
 import { streamText } from "../../src/lichess/stream.ts";
 import type { GameUpdate } from "../../src/contracts.ts";
+import { FIXTURES } from "../helpers.ts";
 
-const FIX = new URL("../../../../source/sot/fixtures/lichess/", import.meta.url);
-const roundPgn = await Bun.file(new URL("broadcast-round-stream.ZFuAnYX6.pgn", FIX)).text();
-const roundJson = await Bun.file(new URL("broadcast-round.cbVdruwJ.json", FIX)).json();
+const roundPgn = await Bun.file(new URL("broadcast-round-stream.ZFuAnYX6.pgn", FIXTURES)).text();
+const roundJson = await Bun.file(new URL("broadcast-round.cbVdruwJ.json", FIXTURES)).json();
 
 describe("parseRoundPgn", () => {
   test("semua partai di round jadi GameUpdate dengan gameRef study dari GameURL", () => {

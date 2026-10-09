@@ -7,8 +7,9 @@
 //    ponytail: memutasi objek GAS_LIMITS milik modul shared; ganti dengan parameter bootstrap kalau
 //    index.ts kelak diekspor sebagai fungsi.
 import { GAS_LIMITS } from "@movemarket/shared";
+import { FIXTURES } from "../helpers.ts";
 
-const FIXTURE = new URL("../../../../source/sot/fixtures/lichess/game-export.finished-mate.json", import.meta.url);
+const FIXTURE = new URL("game-export.finished-mate.json", FIXTURES);
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 Object.assign(GAS_LIMITS, JSON.parse(process.env.MM_TEST_GAS_LIMITS ?? "{}"));

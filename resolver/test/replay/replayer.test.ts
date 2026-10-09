@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { createReplayer } from "../../src/replay/replayer.ts";
 import type { GameUpdate } from "../../src/contracts.ts";
+import { FIXTURES } from "../helpers.ts";
 
-const FIX = new URL("../../../../source/sot/fixtures/lichess/", import.meta.url);
-const rapidLive = await Bun.file(new URL("game-export.ongoing-rapid.json", FIX)).json();
+const rapidLive = await Bun.file(new URL("game-export.ongoing-rapid.json", FIXTURES)).json();
 const rapid = { ...rapidLive, status: "resign", winner: "black" }; // 44 ply, selesai
-const bullet = await Bun.file(new URL("game-export.finished-mate.json", FIX)).json();
+const bullet = await Bun.file(new URL("game-export.finished-mate.json", FIXTURES)).json();
 
 function setup(o: { viewers?: number; live?: number; stakes?: boolean; pool?: string[] } = {}) {
   let clock = 0;

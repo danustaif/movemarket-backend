@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { fetchSnapshot, gameFromExport } from "../../src/lichess/exportGame.ts";
+import { FIXTURES } from "../helpers.ts";
 
-const FIX = new URL("../../../../source/sot/fixtures/lichess/", import.meta.url);
-const mate = await Bun.file(new URL("game-export.finished-mate.json", FIX)).json();
-const rapid = await Bun.file(new URL("game-export.ongoing-rapid.json", FIX)).json();
-const chapter = await Bun.file(new URL("study-chapter.cbVdruwJ.fGXnnaOp.pgn", FIX)).text();
+const mate = await Bun.file(new URL("game-export.finished-mate.json", FIXTURES)).json();
+const rapid = await Bun.file(new URL("game-export.ongoing-rapid.json", FIXTURES)).json();
+const chapter = await Bun.file(new URL("study-chapter.cbVdruwJ.fGXnnaOp.pgn", FIXTURES)).text();
 
 describe("gameFromExport", () => {
   test("partai selesai: speed dari field speed, hasil dari winner, replay", () => {

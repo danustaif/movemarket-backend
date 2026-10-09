@@ -45,6 +45,8 @@ if (limited.length) log("limited_mode", { missing: limited });
 if (!secret("ADMIN_TOKEN")) log("admin_disabled", { reason: "ADMIN_TOKEN kosong" });
 
 // ----------------------------------------------------------------------- waktu chain
+/** Detak replayer dan cek backfill watcher (pemulihan). */
+const TICK_MS = 1000;
 let chainOffsetSec = 0;
 const nowSec = () => Math.floor(Date.now() / 1000 + chainOffsetSec);
 async function refreshChain() {
@@ -125,7 +127,7 @@ const replayer = createReplayer({
   ...cfg.replay,
   log,
 });
-setInterval(() => replayer.tick().catch((err) => log("replay_tick_failed", { err: String(err) })), 1000);
+setInterval(() => replayer.tick().catch((err) => log("replay_tick_failed", { err: String(err) })), TICK_MS);
 
 // ----------------------------------------------------------------------- chain: watcher, CRE, pemulihan
 const cre = cfg.creMode === "simulate"
@@ -193,7 +195,7 @@ async function startChain() {
     const refs = new Set(store.all().filter((m) => m.final === null).map((m) => m.gameRef));
     log("recovered", { markets: store.all().length, openGames: refs.size });
     for (const ref of refs) if (!registry.get(ref)) void recoverGame(ref);
-  }, 1000);
+  }, TICK_MS);
 }
 if (chainReady) void startChain();
 

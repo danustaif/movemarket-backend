@@ -14,10 +14,14 @@ interface ExportJson {
   players?: Record<"white" | "black", ExportPlayer>;
 }
 
-function player(p: ExportPlayer | undefined): Player {
-  const name = p?.user?.name ?? (p?.aiLevel ? `Stockfish level ${p.aiLevel}` : "Anonymous");
-  return typeof p?.rating === "number" ? { name, rating: p.rating } : { name };
+/** Pemain untuk semua sumber (export JSON, tag PGN broadcast). Rating hanya kalau angka positif. */
+export function player(name: string | undefined, rating: number | undefined): Player {
+  const n = name ?? "?";
+  return rating !== undefined && Number.isFinite(rating) && rating > 0 ? { name: n, rating } : { name: n };
 }
+
+const exportPlayer = (p: ExportPlayer | undefined) =>
+  player(p?.user?.name ?? (p?.aiLevel ? `Stockfish level ${p.aiLevel}` : "Anonymous"), p?.rating);
 
 /** JSON export -> GameUpdate. isReplay menentukan source: replay, selain itu tv (satu-satunya sumber live game). */
 export function gameFromExport(json: unknown, isReplay: boolean): GameUpdate {
@@ -30,8 +34,8 @@ export function gameFromExport(json: unknown, isReplay: boolean): GameUpdate {
     gameRef: `lichess:game:${j.id}`,
     source: isReplay ? "replay" : "tv",
     speed,
-    white: player(j.players?.white),
-    black: player(j.players?.black),
+    white: exportPlayer(j.players?.white),
+    black: exportPlayer(j.players?.black),
     sans: snap.sans,
     ended: snap.ended,
     ...(result ? { result } : {}),

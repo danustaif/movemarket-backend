@@ -12,11 +12,12 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
+import { FIXTURES } from "../helpers.ts";
 
 const ROOT = new URL("../../../../", import.meta.url).pathname;
 const OUT = `${ROOT}smart-contract/out`;
 const ARTIFACTS = { MockUSDC: `${OUT}/MockUSDC.sol/MockUSDC.json`, LiveMarket: `${OUT}/LiveMarket.sol/LiveMarket.json`, MockForwarder: `${OUT}/MockForwarder.sol/MockForwarder.json` };
-const FIXTURE = `${ROOT}source/sot/fixtures/lichess/game-export.finished-mate.json`;
+const FIXTURE = new URL("game-export.finished-mate.json", FIXTURES);
 const GAME_ID = "e9SJcXpJ";
 const GAME_REF = `lichess:game:${GAME_ID}`;
 
