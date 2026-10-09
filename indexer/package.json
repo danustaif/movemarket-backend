@@ -1,0 +1,26 @@
+{
+  "name": "movemarket-indexer",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "codegen": "envio codegen",
+    "dev": "envio dev",
+    "start": "envio start",
+    "test": "vitest run --test-timeout=10000",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "5.9.3",
+    "vitest": "4.0.18"
+  },
+  "dependencies": {
+    "envio": "3.0.0-alpha.21"
+  },
+  "optionalDependencies": {
+    "generated": "./generated"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

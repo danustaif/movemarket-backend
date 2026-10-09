@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+# Spesifikasi: source/docs/INDEXER.md bagian 1. Nilai dari source/sot/constants.json (addresses, network)
+# dan signature event dari source/sot/abi.json. envio 3.x memakai `chains` (bukan `networks`).
+name: movemarket-indexer
+field_selection:
+  transaction_fields:
+    - hash
+contracts:
+  - name: LiveMarket
+    handler: src/EventHandlers.ts
+    events:
+      - event: MarketCreated(uint256 indexed id, bytes32 indexed gameKey, string gameRef, uint8 marketType, uint8 side, uint16 fromPly, uint16 toPly, uint64 lockTime, uint64 resolveDeadline)
+      - event: MarketLocked(uint256 indexed id, uint64 lockTime)
+      - event: BetPlaced(uint256 indexed id, address indexed user, bool yes, uint128 amount, uint128 poolYes, uint128 poolNo)
+      - event: ResolutionRequested(bytes32 indexed gameKey, string gameRef, uint256[] ids)
+      - event: MarketResolved(uint256 indexed id, uint8 outcome)
+      - event: MarketVoided(uint256 indexed id, uint8 reason)
+      - event: Claimed(uint256 indexed id, address indexed user, uint256 payout)
+      - event: Refunded(uint256 indexed id, address indexed user, uint256 amount)
+chains:
+  - id: 10143 # Monad Testnet. HyperSync bawaan (https://10143.hypersync.xyz) di Envio Cloud, tanpa token.
+    start_block: 69649726 # addresses.deployBlock
+    contracts:
+      - name: LiveMarket
+        address: 0xA40F0D8f2e70bfd8F52B4d08089bD083cBdDB9a9 # addresses.liveMarket
