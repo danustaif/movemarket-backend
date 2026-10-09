@@ -6,3 +6,4 @@ secrets.yaml
 *.keystore
 indexer/generated/
 .DS_Store
+.cre-auth/
