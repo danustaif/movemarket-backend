@@ -5,9 +5,9 @@
 // Batas tanggung jawab: resolver tidak pernah menulis hasil final; itu hanya dari CRE lewat forwarder.
 import type {
   CreHandlerResult, CreMode, FaucetResponse, FinalOutcome, GameResult, GameSourceKind, Player, PositionDto,
-  ResolveOutcome, Speed, SseEvents, liveMarketAbi,
+  ResolveOutcome, Speed, SseEvents, VoidReasonCode, liveMarketAbi,
 } from "@movemarket/shared";
-import type { Address, ContractEventArgs, ContractEventName, ContractFunctionArgs, Hex, TransactionReceipt } from "viem";
+import type { Address, ContractEventArgsFromTopics, ContractEventName, ContractFunctionArgs, Hex, TransactionReceipt } from "viem";
 
 type LiveMarketAbi = typeof liveMarketAbi;
 export type Stop = () => void;
@@ -72,6 +72,8 @@ export interface TrackedMarket {
   provisional: ResolveOutcome;
   requested: boolean;
   final: FinalOutcome | null;
+  /** Diisi dari MarketVoided. 2 (NO_WINNERS) dihitung cocok dengan hasil sementara YES/NO. */
+  voidReason: VoidReasonCode | null;
 }
 
 /** Input createMarkets, persis struct MarketParams di ABI. */
@@ -134,7 +136,7 @@ export interface TxQueue {
 
 export type LiveMarketEventName = ContractEventName<LiveMarketAbi>;
 export type LiveMarketEvent = {
-  [E in LiveMarketEventName]: { name: E; args: ContractEventArgs<LiveMarketAbi, E>; txHash: Hex; blockNumber: bigint };
+  [E in LiveMarketEventName]: { name: E; args: ContractEventArgsFromTopics<LiveMarketAbi, E>; txHash: Hex; blockNumber: bigint };
 }[LiveMarketEventName];
 
 /**
