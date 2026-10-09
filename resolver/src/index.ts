@@ -116,6 +116,7 @@ const hasPendingStakes = (gameRef: string) =>
 const replayer = createReplayer({
   fetchGame: (id) => fetchGameJson(id),
   onUpdate,
+  newRun: pipeline.newRun,
   sse,
   engine,
   hasPendingStakes,
@@ -141,7 +142,7 @@ async function recoverGame(gameRef: string) {
       gameRef, source: study ? "broadcast" : "replay", speed: "unknown", white: { name: "?" }, black: { name: "?" },
       sans: snap.sans, ended: snap.ended, isReplay: !study, fen: "", castled: { white: false, black: false }, updatedAt: Date.now(),
     };
-    engine.onCorrection(state);
+    await engine.onCorrection(state, nowSec());
   } catch (err) {
     log("recover_failed", { gameRef, err: String(err) });
   }
@@ -224,7 +225,7 @@ function clientIp(c: Context): string {
 }
 
 const app = createApp({
-  registry, store, sse, faucet, nowSec, creMode: cfg.creMode, clientIp,
+  registry: { all: pipeline.tracked, get: registry.get }, store, sse, faucet, nowSec, creMode: cfg.creMode, clientIp,
   corsOrigin: cfg.corsOrigin,
   adminToken: secret("ADMIN_TOKEN"),
   admin: {

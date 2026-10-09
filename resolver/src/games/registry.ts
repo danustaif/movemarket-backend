@@ -47,6 +47,6 @@ export function createGameRegistry(nowMs: () => number = Date.now): GameRegistry
     },
     get: (gameRef) => games.get(gameRef),
     all: () => [...games.values()],
-    untrack: (gameRef) => void games.delete(gameRef),
+    reset: (gameRef) => void games.delete(gameRef),
   };
 }

@@ -52,7 +52,8 @@ export interface GameRegistry {
   apply(u: GameUpdate): ApplyResult;
   get(gameRef: string): GameState | undefined;
   all(): GameState[];
-  untrack(gameRef: string): void;
+  /** Lupakan state partai: update berikutnya dianggap partai baru (replay ulang = run baru, bukan koreksi). */
+  reset(gameRef: string): void;
 }
 
 // ======================================================================= pasar
@@ -90,9 +91,16 @@ export type LocksDue = (state: GameState, markets: readonly TrackedMarket[], now
  * (SSE provisional, masukkan ke Requester hanya kalau pasar punya stake, SOT D18) -> rencana (createMarkets).
  */
 export interface MarketEngine {
-  onPly(state: GameState, nowSec: number): Promise<void>;
-  /** Setelah koreksi: hitung ulang hasil sementara semua pasar partai yang belum final. */
-  onCorrection(state: GameState): void;
+  /** spawn = false (partai di-untrack): kunci dan hasil sementara tetap jalan, tanpa pasar baru. */
+  onPly(state: GameState, nowSec: number, spawn?: boolean): Promise<void>;
+  /** Setelah koreksi: kunci ply (D11), lalu hitung ulang hasil sementara semua pasar partai yang belum final. */
+  onCorrection(state: GameState, nowSec: number): Promise<void>;
+  /**
+   * Run baru partai yang sama (replay ulang). Planner hanya melihat pasar yang dibuat sejak nowSec, jadi
+   * pasar run sebelumnya tidak menghalangi pasar baru. Tanpa newRun (broadcast, setelah restart) semua
+   * pasar partai dihitung, supaya restart tidak menduplikasi pasar yang masih berjalan.
+   */
+  newRun(gameRef: string, nowSec: number): void;
   /** Per partai. Replay tanpa penonton (SOT D16): berhenti membuat pasar baru, tetap kunci dan selesaikan. */
   setSpawning(gameRef: string, enabled: boolean): void;
 }

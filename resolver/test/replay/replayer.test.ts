@@ -17,6 +17,7 @@ function setup(o: { viewers?: number; live?: number; stakes?: boolean; pool?: st
   const r = createReplayer({
     fetchGame: async (id) => (id === rapid.id ? rapid : bullet),
     onUpdate: (u) => updates.push(u),
+    newRun: () => {},
     sse: { publish: (e, d) => sse.push(`${e}:${(d as { gameRef: string }).gameRef}`), viewers: () => env.viewers },
     engine: { setSpawning: (ref, b) => spawning.push(`${ref}:${b}`) },
     hasPendingStakes: () => env.stakes,

@@ -17,7 +17,7 @@ test("partai baru dan perpanjangan menghasilkan advanced dengan ply baru", () =>
   expect(r.apply(upd(["e4", "e5", "Nf3"]))).toEqual({ kind: "unchanged" });
   expect(r.apply(upd(["e4", "e5", "Nf3"], { ended: true, result: "1-0" }))).toMatchObject({ kind: "advanced", newPlies: [] });
   expect(r.all()).toHaveLength(1);
-  r.untrack("lichess:study:cbVdruwJ:fGXnnaOp");
+  r.reset("lichess:study:cbVdruwJ:fGXnnaOp");
   expect(r.get("lichess:study:cbVdruwJ:fGXnnaOp")).toBeUndefined();
 });
 

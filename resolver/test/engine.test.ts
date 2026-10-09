@@ -71,10 +71,10 @@ test("setSpawning(false) menghentikan pasar baru tapi tetap mengunci; ply yang s
   expect(calls.filter((c) => c === "tx:createMarkets")).toHaveLength(1);
 });
 
-test("koreksi menghitung ulang semua pasar belum final, termasuk yang sudah di-request", () => {
+test("koreksi menghitung ulang semua pasar belum final, termasuk yang sudah di-request", async () => {
   put(market({ id: 1n, fromPly: 1, toPly: 2, provisional: "NO", requested: true, poolNo: 1n }));
   put(market({ id: 2n, fromPly: 1, toPly: 2, provisional: "NO", final: "NO" }));
-  engine().onCorrection(gameState({ sans: ["e4", "Bb4+"] }));
+  await engine().onCorrection(gameState({ sans: ["e4", "Bb4+"] }), NOW);
   expect(store.get(1n)!.provisional).toBe("YES");
   expect(store.get(2n)!.provisional).toBe("NO");
   expect(calls).toEqual([`sse:provisional:{"gameRef":"lichess:game:e9SJcXpJ","marketId":"1","outcome":"YES"}`]);

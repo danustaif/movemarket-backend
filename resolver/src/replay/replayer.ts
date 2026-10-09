@@ -7,6 +7,8 @@ import { gameFromExport } from "../lichess/exportGame.ts";
 export interface ReplayerDeps {
   fetchGame(gameId: string): Promise<unknown>;
   onUpdate(u: GameUpdate): void;
+  /** Mulai run baru partai itu (state lama dilupakan) sebelum update pertama replay. */
+  newRun(gameRef: string): void;
   sse: Pick<SseHub, "publish" | "viewers">;
   engine: Pick<MarketEngine, "setSpawning">;
   /** Ada pasar partai ini yang punya stake dan belum final. */
@@ -58,6 +60,7 @@ export function createReplayer(d: ReplayerDeps): Replayer & { tick(): Promise<vo
     if (active) d.log("replay_replaced", { gameRef: active.full.gameRef });
     const intervalMs = plyIntervalSec * 1000;
     active = { full, ply: Math.min(d.startPly, full.sans.length), intervalMs, nextAt: now() + intervalMs };
+    d.newRun(full.gameRef);
     setSpawning(full.gameRef, watched(now())); // sebelum update pertama, supaya ply 20 tidak spawn tanpa penonton
     d.sse.publish("replay_starting", { gameRef: full.gameRef });
     d.log("replay_started", { gameRef: full.gameRef, ply: active.ply });
