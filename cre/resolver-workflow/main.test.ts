@@ -105,6 +105,20 @@ describe("onResolutionRequested", () => {
   });
 });
 
+describe("simulate tanpa --broadcast", () => {
+  test("writeReport SUCCESS tanpa txHash: hasil dry-run tanpa txHash, bukan error", () => {
+    const { runtime } = setup(baseConfig);
+    const evm = EvmMock.testInstance(MONAD_TESTNET_SELECTOR);
+    const inner = evm.writeReport!;
+    evm.writeReport = (req) => ({ ...(inner(req) as object), txHash: "" }) as never;
+
+    const out = JSON.parse(onResolutionRequested(runtime, log([5n])));
+    expect(out.txHash).toBeUndefined();
+    expect(out.note).toBe("dry-run: report dibuat, tidak di-broadcast");
+    expect(out.resolved).toBeGreaterThan(0);
+  });
+});
+
 describe("initWorkflow", () => {
   test("satu handler: log trigger ResolutionRequested di LiveMarket, confidence finalized", () => {
     const [h] = initWorkflow(baseConfig);

@@ -85,9 +85,11 @@ export const onResolutionRequested = (runtime: Runtime<Config>, log: EVMLog): st
     .writeReport(runtime, { receiver: cfg.liveMarketAddress, report, gasConfig: { gasLimit: cfg.gasLimit } })
     .result();
   const receiverReverted = tx.receiverContractExecutionStatus === EVM_PB.ReceiverContractExecutionStatus.REVERTED;
-  if (tx.txStatus !== TxStatus.SUCCESS || receiverReverted || !tx.txHash?.length) {
+  if (tx.txStatus !== TxStatus.SUCCESS || receiverReverted) {
     throw new Error(`writeReport failed: ${TxStatus[tx.txStatus]}${receiverReverted ? " (receiver reverted)" : ""} ${tx.errorMessage ?? ""}`);
   }
+  // `cre workflow simulate` tanpa --broadcast: report dibuat tapi tidak ada transaksi, jadi tidak ada txHash.
+  if (!tx.txHash?.length) return out({ ...counts, note: "dry-run: report dibuat, tidak di-broadcast" });
   return out({ ...counts, txHash: bytesToHex(tx.txHash) });
 };
 
