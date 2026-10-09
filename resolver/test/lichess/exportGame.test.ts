@@ -24,6 +24,11 @@ describe("gameFromExport", () => {
   });
 });
 
+test("nama cadangan: Stockfish untuk AI, Anonymous tanpa akun, ultraBullet jadi unknown", () => {
+  const u = gameFromExport({ ...mate, speed: "ultraBullet", players: { white: { aiLevel: 3 }, black: {} } }, true);
+  expect(u).toMatchObject({ speed: "unknown", white: { name: "Stockfish level 3" }, black: { name: "Anonymous" } });
+});
+
 describe("fetchSnapshot", () => {
   test("request sama dengan CRE (sourceRequest) untuk game JSON dan study PGN", async () => {
     const seen: { url: string; headers: unknown }[] = [];

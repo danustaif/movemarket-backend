@@ -1,7 +1,7 @@
 // Bootstrap resolver service (RESOLVER_SERVICE.md). Urutan per ply: registry.apply -> SSE ply -> engine.onPly.
 // Tanpa alamat kontrak atau private key, service tetap jalan dalam mode terbatas (HTTP, SSE, ingest, replay)
 // dan setiap transaksi gagal dengan error yang jelas.
-import { GAS_LIMITS, SOT, liveMarketAbi, type FinalOutcome } from "@movemarket/shared";
+import { COPY, GAS_LIMITS, SOT, formatGameRef, liveMarketAbi, parseGameRef, type FinalOutcome } from "@movemarket/shared";
 import type { Context } from "hono";
 import { getConnInfo } from "hono/bun";
 import { resolve as resolvePath } from "node:path";
@@ -103,7 +103,7 @@ const rounds = new Map<string, Stop>();
 async function trackRound(roundId: string): Promise<string[]> {
   const info = await fetchRoundInfo(roundId);
   if (!(SOT.speed.supported as string[]).includes(info.speed)) log("speed_unsupported", { roundId, speed: info.speed });
-  const refs = info.chapterIds.map((id) => `lichess:study:${roundId}:${id}`);
+  const refs = info.chapterIds.map((chapterId) => formatGameRef({ kind: "study", roundId, chapterId }));
   for (const ref of refs) pipeline.track(ref);
   if (!rounds.has(roundId)) {
     rounds.set(roundId, createBroadcastFeed({ roundId, speed: info.speed, log }).start(onUpdate));
@@ -138,10 +138,12 @@ const cre = cfg.creMode === "simulate"
 async function recoverGame(gameRef: string) {
   try {
     const snap = await fetchSnapshot(gameRef);
-    const study = gameRef.startsWith("lichess:study:");
-    if (study && !snap.ended) await trackRound(gameRef.split(":")[2]!);
+    const ref = parseGameRef(gameRef);
+    const study = ref?.kind === "study";
+    if (study && !snap.ended) await trackRound(ref.roundId);
+    const unknown = { name: COPY.ui.player.unknown };
     const state: GameState = {
-      gameRef, source: study ? "broadcast" : "replay", speed: "unknown", white: { name: "?" }, black: { name: "?" },
+      gameRef, source: study ? "broadcast" : "replay", speed: "unknown", white: unknown, black: unknown,
       sans: snap.sans, ended: snap.ended, isReplay: !study, fen: "", castled: { white: false, black: false }, updatedAt: Date.now(),
     };
     await engine.onCorrection(state, nowSec());

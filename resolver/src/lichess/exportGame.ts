@@ -1,10 +1,11 @@
 // Export partai Lichess (SOT bagian 7.2). Sumber yang sama dengan CRE: sourceRequest + parser dari shared.
 import {
-  parseLichessJson, parsePgn, sourceRequest, type GameResult, type Player, type Snapshot, type Speed,
+  COPY, SOT, formatGameRef, parseLichessJson, snapshotFrom, sourceRequest, type GameResult, type Player, type Snapshot, type Speed,
 } from "@movemarket/shared";
 import type { GameUpdate } from "../contracts.ts";
 
-const SPEEDS = new Set<Speed>(["classical", "rapid", "blitz", "bullet"]);
+const SPEEDS: readonly string[] = SOT.speed.known;
+const NAMES = COPY.ui.player;
 
 type ExportPlayer = { user?: { name?: string }; rating?: number; aiLevel?: number };
 interface ExportJson {
@@ -16,22 +17,22 @@ interface ExportJson {
 
 /** Pemain untuk semua sumber (export JSON, tag PGN broadcast). Rating hanya kalau angka positif. */
 export function player(name: string | undefined, rating: number | undefined): Player {
-  const n = name ?? "?";
+  const n = name ?? NAMES.unknown;
   return rating !== undefined && Number.isFinite(rating) && rating > 0 ? { name: n, rating } : { name: n };
 }
 
 const exportPlayer = (p: ExportPlayer | undefined) =>
-  player(p?.user?.name ?? (p?.aiLevel ? `Stockfish level ${p.aiLevel}` : "Anonymous"), p?.rating);
+  player(p?.user?.name ?? (p?.aiLevel ? NAMES.engine.replace("{level}", String(p.aiLevel)) : NAMES.anonymous), p?.rating);
 
 /** JSON export -> GameUpdate. isReplay menentukan source: replay, selain itu tv (satu-satunya sumber live game). */
 export function gameFromExport(json: unknown, isReplay: boolean): GameUpdate {
   const j = json as ExportJson;
   const snap = parseLichessJson(json);
-  const speed = SPEEDS.has(j.speed as Speed) ? (j.speed as Speed) : "unknown";
+  const speed = SPEEDS.includes(j.speed ?? "") ? (j.speed as Speed) : "unknown";
   let result: GameResult | undefined;
   if (snap.ended) result = j.winner === "white" ? "1-0" : j.winner === "black" ? "0-1" : "1/2-1/2";
   return {
-    gameRef: `lichess:game:${j.id}`,
+    gameRef: formatGameRef({ kind: "game", gameId: j.id }),
     source: isReplay ? "replay" : "tv",
     speed,
     white: exportPlayer(j.players?.white),
@@ -52,12 +53,11 @@ async function get(gameRef: string, f: typeof fetch): Promise<Response> {
 
 /** JSON export mentah satu game (untuk replay). */
 export async function fetchGameJson(gameId: string, f: typeof fetch = fetch): Promise<unknown> {
-  return (await get(`lichess:game:${gameId}`, f)).json();
+  return (await get(formatGameRef({ kind: "game", gameId }), f)).json();
 }
 
 /** Snapshot dari export resmi untuk gameRef apa pun, persis seperti yang dibaca CRE (prasyarat D17). */
 export async function fetchSnapshot(gameRef: string, f: typeof fetch = fetch): Promise<Snapshot> {
   const format = sourceRequest(gameRef).format;
-  const res = await get(gameRef, f);
-  return format === "json" ? parseLichessJson(await res.json()) : parsePgn(await res.text());
+  return snapshotFrom(format, await (await get(gameRef, f)).text());
 }

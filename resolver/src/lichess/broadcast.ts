@@ -1,13 +1,14 @@
 // Ingest broadcast turnamen (sumber live utama, SOT D12 dan bagian 7.3).
 // Stream PGN semua partai di round, dikirim ulang saat ada perubahan. chapterId dari tag GameURL.
 import {
-  SOT, chapterIdFromTags, parsePgn, parsePgnTags, splitPgnGames, type GameResult, type Speed,
+  SOT, chapterIdFromTags, formatGameRef, parsePgn, parsePgnTags, splitPgnGames, type GameResult, type Speed,
 } from "@movemarket/shared";
 import type { GameFeed, GameUpdate } from "../contracts.ts";
 import { player } from "./exportGame.ts";
 import { sourceUrl, streamText, type StreamOpts } from "./stream.ts";
 
-const RESULTS = new Set<string>(["1-0", "0-1", "1/2-1/2"]);
+/** Token hasil akhir dari SOT (lichess.pgn.resultTokens tanpa token partai berjalan). */
+const RESULTS = new Set<string>(SOT.lichess.pgn.resultTokens.filter((t) => t !== SOT.lichess.pgn.ongoingToken));
 
 /** Setiap PGN partai di teks round -> GameUpdate. Partai tanpa chapterId valid dilewati. */
 export function parseRoundPgn(text: string, roundId: string, speed: Speed): GameUpdate[] {
@@ -19,7 +20,7 @@ export function parseRoundPgn(text: string, roundId: string, speed: Speed): Game
     const snap = parsePgn(pgn);
     const result = RESULTS.has(tags.Result ?? "") ? (tags.Result as GameResult) : undefined;
     out.push({
-      gameRef: `lichess:study:${roundId}:${chapterId}`,
+      gameRef: formatGameRef({ kind: "study", roundId, chapterId }),
       source: "broadcast",
       speed,
       white: player(tags.White, Number(tags.WhiteElo)),
