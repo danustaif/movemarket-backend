@@ -12,7 +12,12 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@movemarket/shared": [
+        "../../source/shared/src/index.ts"
+      ]
+    }
   },
   "include": [
     "src",
