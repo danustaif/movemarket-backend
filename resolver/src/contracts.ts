@@ -127,14 +127,16 @@ export interface Requester {
 
 // ======================================================================= chain
 
-/** Transaksi wallet resolver. Prioritas dari jenisnya: lockMarkets > adminVoid > createMarkets > requestResolution > mint. */
+/** Transaksi wallet resolver. Prioritas dari jenisnya: lockMarkets > adminVoid > createMarkets > requestResolution > creReport > mint. */
 export type ResolverTx =
   | { kind: "lockMarkets"; ids: bigint[] }
   | { kind: "createMarkets"; params: MarketParams[] }
   | { kind: "requestResolution"; gameRef: string; ids: bigint[] }
   | { kind: "mint"; to: Address; amount: bigint }
   /** POST /admin/void. Butuh wallet resolver = owner LiveMarket; kalau bukan, kontrak revert. */
-  | { kind: "adminVoid"; ids: bigint[] };
+  | { kind: "adminVoid"; ids: bigint[] }
+  /** CRE_MODE=mock (SOT D23): report(receiver, rawReport, 0x, []) di MockKeystoneForwarder. */
+  | { kind: "creReport"; receiver: Address; rawReport: Hex };
 
 /**
  * Antrian tunggal wallet resolver dengan nonceManager viem. Gas eksplisit base + perMarket x n dari
@@ -166,7 +168,7 @@ export interface ChainWatcher {
 // ======================================================================= CRE
 
 /**
- * Aktif hanya kalau CRE_MODE=simulate. Konkurensi 1, timeout CRE_RUN_TIMEOUT_SEC. Menjalankan
+ * CRE_MODE=simulate (cre/runner.ts) atau CRE_MODE=mock (cre/mockRunner.ts, SOT D23). Simulate: konkurensi 1, timeout CRE_RUN_TIMEOUT_SEC. Menjalankan
  * `cre workflow simulate resolver-workflow --target <CRE_TARGET> --non-interactive --trigger-index 0
  *  --evm-tx-hash <txHash> --evm-event-index 0 --broadcast` dan mengurai string JSON hasil handler.
  * Hanya dipanggil untuk ResolutionRequested yang bloknya sudah finalized.

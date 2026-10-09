@@ -19,6 +19,11 @@ describe("config", () => {
     expect(JSON.stringify(c, (_k, v) => (typeof v === "bigint" ? String(v) : v))).not.toContain("rahasia");
   });
 
+  test("CRE_MODE menerima mock (SOT D23), nilai lain ditolak", () => {
+    expect(loadConfig({ CRE_MODE: "mock" }).creMode).toBe("mock");
+    expect(() => loadConfig({ CRE_MODE: "mainnet" })).toThrow(/CRE_MODE/);
+  });
+
   test("override env dan REPLAY_POOL dipisah koma", () => {
     const c = loadConfig({
       PORT: "9000", REPLAY_POOL: "aaaaaaaa, bbbbbbbb,", DEPLOY_BLOCK: "123",

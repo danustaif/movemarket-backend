@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { SOT } from "@movemarket/shared";
 import type { TransactionReceipt } from "viem";
 import { createTxQueue, type TxRequest } from "../../src/chain/txQueue.ts";
 
@@ -30,6 +31,15 @@ describe("TxQueue", () => {
     expect(seen[2]).toMatchObject({ target: "liveMarket", args: ["g", [5n]] });
   });
 
+  test("creReport (SOT D23): report(receiver, rawReport, 0x, []) di forwarder, gas cre.gasLimit", async () => {
+    const seen: TxRequest[] = [];
+    const q = createTxQueue({ limits, write: async (r) => { seen.push(r); return receipt; } });
+    await q.send({ kind: "creReport", receiver: to, rawReport: "0x01" });
+    expect(seen).toEqual([{
+      target: "forwarder", functionName: "report", args: [to, "0x01", "0x", []], gas: BigInt(SOT.cre.gasLimit), urgent: false,
+    }]);
+  });
+
   test("gas SOT null: gagal dengan error jelas, tanpa write", async () => {
     let writes = 0;
     const q = createTxQueue({ limits: { ...limits, lockMarketsBase: null }, write: async () => { writes++; return receipt; } });
@@ -37,7 +47,7 @@ describe("TxQueue", () => {
     expect(writes).toBe(0);
   });
 
-  test("antrian tunggal berprioritas: lockMarkets > createMarkets > requestResolution > mint", async () => {
+  test("antrian tunggal berprioritas: lockMarkets > createMarkets > requestResolution > creReport > mint", async () => {
     const order: string[] = [];
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
@@ -49,13 +59,14 @@ describe("TxQueue", () => {
     await Bun.sleep(1);
     const rest = [
       q.send({ kind: "mint", to, amount: 2n }),
+      q.send({ kind: "creReport", receiver: to, rawReport: "0x01" }),
       q.send({ kind: "requestResolution", gameRef: "g", ids: [1n] }),
       q.send({ kind: "createMarkets", params: [P] }),
       q.send({ kind: "lockMarkets", ids: [1n] }),
     ];
     release();
     await Promise.all([first, ...rest]);
-    expect(order).toEqual(["mint", "lockMarkets", "createMarkets", "requestResolution", "mint"]);
+    expect(order).toEqual(["mint", "lockMarkets", "createMarkets", "requestResolution", "report", "mint"]);
   });
 
   test("retry sekali untuk nonce/underpriced, tidak untuk error lain", async () => {

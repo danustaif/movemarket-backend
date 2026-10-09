@@ -8,6 +8,7 @@ import {
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { privateKey, type Config, type PrivateKeyName } from "../config.ts";
+import { mockForwarderAbi } from "../cre/mockRunner.ts";
 import type { TxRequest, Write } from "./txQueue.ts";
 
 export type Wallet = WalletClient<Transport, Chain, Account>;
@@ -48,16 +49,22 @@ export function lockMarketsFees(est: { maxFeePerGas: bigint; maxPriorityFeePerGa
 
 const NOT_SUPPORTED = /method.*(not found|not supported|does not exist)|-32601/i;
 
-/** Write untuk txQueue: writeContractSync (eth_sendRawTransactionSync), cadangan writeContract + receipt. */
+const ABIS = { liveMarket: liveMarketAbi, mockUsdc: mockUsdcAbi, forwarder: mockForwarderAbi } as const;
+
+/**
+ * Write untuk txQueue: writeContractSync (eth_sendRawTransactionSync), cadangan writeContract + receipt.
+ * forwarder (CRE_MODE=mock, SOT D23) default addresses.creMockKeystoneForwarder.
+ */
 export function contractWriter(
-  wallet: Wallet, publicClient: PublicClient, addresses: { liveMarket: Address; mockUsdc: Address },
+  wallet: Wallet, publicClient: PublicClient, addresses: { liveMarket: Address; mockUsdc: Address; forwarder?: Address },
 ): { write: Write; resetNonce(): void } {
+  const to = { forwarder: SOT.addresses.creMockKeystoneForwarder as Address, ...addresses };
   let syncSupported = true;
   const write: Write = async (req: TxRequest) => {
     const fees = req.urgent ? lockMarketsFees(await publicClient.estimateFeesPerGas()) : {};
     const params = {
-      address: addresses[req.target],
-      abi: (req.target === "liveMarket" ? liveMarketAbi : mockUsdcAbi) as Abi,
+      address: to[req.target],
+      abi: ABIS[req.target] as Abi,
       functionName: req.functionName,
       args: req.args,
       gas: req.gas,

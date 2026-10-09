@@ -1,12 +1,13 @@
 // Antrian tunggal wallet resolver (RESOLVER_SERVICE.md 2.8). Satu transaksi berjalan pada satu waktu,
 // sisanya diurutkan menurut prioritas jenis, FIFO di dalam jenis yang sama.
-import { GAS_LIMITS, type GasLimitName } from "@movemarket/shared";
+import { GAS_LIMITS, SOT, type GasLimitName } from "@movemarket/shared";
 import type { TransactionReceipt } from "viem";
 import type { ResolverTx, TxQueue } from "../contracts.ts";
 
 export interface TxRequest {
-  target: "liveMarket" | "mockUsdc";
-  functionName: "lockMarkets" | "adminVoid" | "createMarkets" | "requestResolution" | "mint";
+  /** forwarder: MockKeystoneForwarder (CRE_MODE=mock, SOT D23). */
+  target: "liveMarket" | "mockUsdc" | "forwarder";
+  functionName: "lockMarkets" | "adminVoid" | "createMarkets" | "requestResolution" | "mint" | "report";
   args: readonly unknown[];
   gas: bigint;
   /** lockMarkets: priority fee lebih tinggi supaya diurutkan sebelum bet di blok yang sama. */
@@ -17,7 +18,7 @@ export type Write = (req: TxRequest) => Promise<TransactionReceipt>;
 type Limits = Partial<Record<GasLimitName, number | null>>;
 
 const PRIORITY: Record<ResolverTx["kind"], number> = {
-  lockMarkets: 0, adminVoid: 1, createMarkets: 2, requestResolution: 3, mint: 4,
+  lockMarkets: 0, adminVoid: 1, createMarkets: 2, requestResolution: 3, creReport: 4, mint: 5,
 };
 
 function limit(limits: Limits, name: GasLimitName): bigint {
@@ -40,6 +41,9 @@ export function toRequest(tx: ResolverTx, l: Limits = GAS_LIMITS): TxRequest {
       return { target: "liveMarket", functionName: "createMarkets", args: [tx.params], gas: batch(l, "createMarkets", tx.params.length), urgent: false };
     case "requestResolution":
       return { target: "liveMarket", functionName: "requestResolution", args: [tx.gameRef, tx.ids], gas: batch(l, "requestResolution", tx.ids.length), urgent: false };
+    case "creReport":
+      // reportContext dan signatures diabaikan MockKeystoneForwarder (SOT bagian 16).
+      return { target: "forwarder", functionName: "report", args: [tx.receiver, tx.rawReport, "0x", []], gas: BigInt(SOT.cre.gasLimit), urgent: false };
     case "mint":
       return { target: "mockUsdc", functionName: "mint", args: [tx.to, tx.amount], gas: limit(l, "mint"), urgent: false };
   }

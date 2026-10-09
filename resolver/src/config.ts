@@ -35,7 +35,7 @@ const schema = z.object({
   LIVE_MARKET_ADDRESS: address,
   MOCK_USDC_ADDRESS: address,
   DEPLOY_BLOCK: z.string().regex(/^\d+$/).optional(),
-  CRE_MODE: z.enum(["simulate", "don", "off"]).default("simulate"),
+  CRE_MODE: z.enum(["simulate", "don", "mock", "off"]).default("simulate"),
   CRE_PROJECT_DIR: z.string().default("../cre"),
   CRE_TARGET: z.string().default("staging-settings"),
   CORS_ORIGIN: z.string().default("*"),
