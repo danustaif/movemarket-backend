@@ -1,20 +1,25 @@
-// Uji integrasi CRE_MODE=mock (SOT D23): runner mock + txQueue + contractWriter terhadap anvil, dengan bytecode
-// MockKeystoneForwarder ASLI di alamat SOT (MockKeystoneForwarder.runtime.hex = `cast code 0xB9F79d...` Monad Testnet,
-// diambil 10 Oktober 2026, typeAndVersion "MockKeystoneForwarder 1.0.0"). Jalankan: `bun run test:integration`.
-import { ENUMS, SOT, liveMarketAbi, mockUsdcAbi, parseLichessJson } from "@movemarket/shared";
+// Uji integrasi CRE_MODE=mock (SOT D23/D24): runner mock + txQueue + contractWriter terhadap anvil, lewat GatedForwarder
+// (artefak smart-contract/out, operator = wallet resolver), dan sebagai cadangan lewat bytecode MockKeystoneForwarder
+// ASLI di alamat SOT (MockKeystoneForwarder.runtime.hex = `cast code 0xB9F79d...` Monad Testnet, diambil 10 Oktober
+// 2026, typeAndVersion "MockKeystoneForwarder 1.0.0"). Jalankan: `bun run test:integration`.
+import { ENUMS, SOT, encodeReport, gameKeyOf, liveMarketAbi, mockUsdcAbi, parseLichessJson } from "@movemarket/shared";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { createPublicClient, createWalletClient, http, type Abi, type Address, type Hex, type PublicClient } from "viem";
+import { concat, createPublicClient, createWalletClient, http, keccak256, type Abi, type Address, type Hex, type PublicClient } from "viem";
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { contractWriter } from "../../src/chain/clients.ts";
 import { createTxQueue } from "../../src/chain/txQueue.ts";
 import type { MarketParams } from "../../src/contracts.ts";
-import { createMockCreRunner } from "../../src/cre/mockRunner.ts";
+import { createMockCreRunner, reportMetadata } from "../../src/cre/mockRunner.ts";
 import { fixture } from "../helpers.ts";
 
 const OUT = new URL("../../../../smart-contract/out/", import.meta.url).pathname;
-const ARTIFACTS = { MockUSDC: `${OUT}MockUSDC.sol/MockUSDC.json`, LiveMarket: `${OUT}LiveMarket.sol/LiveMarket.json` };
+const ARTIFACTS = {
+  MockUSDC: `${OUT}MockUSDC.sol/MockUSDC.json`,
+  LiveMarket: `${OUT}LiveMarket.sol/LiveMarket.json`,
+  GatedForwarder: `${OUT}GatedForwarder.sol/GatedForwarder.json`,
+};
 const FORWARDER = SOT.addresses.creMockKeystoneForwarder as Address;
 const GAME_REF = "lichess:game:e9SJcXpJ"; // fixture game-export.finished-mate.json: 59 ply, Qxb7# di ply 59
 
@@ -39,14 +44,17 @@ const freePort = () => {
   return port;
 };
 
-describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: CRE_MODE=mock lewat MockKeystoneForwarder asli", () => {
+describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: CRE_MODE=mock lewat GatedForwarder", () => {
   let anvil: ReturnType<typeof Bun.spawn>;
   let pub: PublicClient;
   let rpc: string;
   let liveMarket: Address;
   let usdc: Address;
+  let gated: Address;
+  let gatedAbi: Abi;
   let tx: ReturnType<typeof createTxQueue>;
   let runner: ReturnType<typeof createMockCreRunner>;
+  let snapshot: ReturnType<typeof parseLichessJson>;
 
   const rpcCall = (method: string, params: unknown[] = []) => pub.request({ method, params } as never);
   const wallet = (key: Hex) => createWalletClient({ account: privateKeyToAccount(key, { nonceManager }), chain: monadTestnet, transport: http(rpc) });
@@ -60,6 +68,17 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: CRE_MODE=mock 
     const j = await Bun.file(ARTIFACTS[name]).json() as { abi: Abi; bytecode: { object: Hex } };
     const hash = await wallet(KEYS.deployer).deployContract({ abi: j.abi, bytecode: j.bytecode.object, args });
     return (await pub.waitForTransactionReceipt({ hash })).contractAddress!;
+  }
+  /** Seperti wiring index.ts: satu txQueue wallet resolver, satu alamat forwarder untuk writer dan runner. */
+  function mockCre(forwarder: Address) {
+    const writer = contractWriter(wallet(KEYS.resolver), pub, { liveMarket, mockUsdc: usdc, forwarder });
+    const queue = createTxQueue({ write: writer.write });
+    return {
+      tx: queue,
+      runner: createMockCreRunner({
+        client: pub, liveMarket, forwarder, tx: queue, fetchSnapshot: async () => snapshot, nowSec: () => Math.floor(Date.now() / 1000),
+      }),
+    };
   }
   /** Pasar e9SJcXpJ, lockTime 5 detik lagi; lalu waktu dimajukan dan requestResolution (resolver). */
   async function marketsRequested(params: Omit<MarketParams, "gameRef" | "lockTime" | "resolveDeadline">[], bets: (id: bigint) => Promise<void>) {
@@ -87,19 +106,16 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: CRE_MODE=mock 
     await rpcCall("anvil_setCode", [FORWARDER, code]);
     const resolver = privateKeyToAccount(KEYS.resolver).address;
     usdc = await deploy("MockUSDC", []);
-    liveMarket = await deploy("LiveMarket", [usdc, FORWARDER, resolver]);
+    gated = await deploy("GatedForwarder", [resolver]);
+    gatedAbi = (await Bun.file(ARTIFACTS.GatedForwarder).json() as { abi: Abi }).abi;
+    liveMarket = await deploy("LiveMarket", [usdc, gated, resolver]);
     const alice = privateKeyToAccount(KEYS.alice).address;
     await send(KEYS.deployer, usdc, mockUsdcAbi, "setMinter", [privateKeyToAccount(KEYS.deployer).address, true]);
     await send(KEYS.deployer, usdc, mockUsdcAbi, "mint", [alice, 50_000_000n]);
     await send(KEYS.alice, usdc, mockUsdcAbi, "approve", [liveMarket, 2n ** 255n]);
 
-    // Sama dengan wiring index.ts: satu txQueue wallet resolver, forwarder default dari SOT.
-    const writer = contractWriter(wallet(KEYS.resolver), pub, { liveMarket, mockUsdc: usdc });
-    tx = createTxQueue({ write: writer.write });
-    const snapshot = parseLichessJson(JSON.parse(await fixture("game-export.finished-mate.json")));
-    runner = createMockCreRunner({
-      client: pub, liveMarket, tx, fetchSnapshot: async () => snapshot, nowSec: () => Math.floor(Date.now() / 1000),
-    });
+    snapshot = parseLichessJson(JSON.parse(await fixture("game-export.finished-mate.json")));
+    ({ tx, runner } = mockCre(gated));
   }, 30_000);
 
   afterAll(() => anvil?.kill());
@@ -116,7 +132,7 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: CRE_MODE=mock 
     expect(await status(check)).toBe("RESOLVED");
     expect(await status(ids[1]!)).toBe("VOIDED");
     const fwd = await pub.getTransaction({ hash: r.txHash! });
-    expect(fwd.to?.toLowerCase()).toBe(FORWARDER.toLowerCase());
+    expect(fwd.to?.toLowerCase()).toBe(gated.toLowerCase());
     expect(fwd.gas).toBe(BigInt(SOT.cre.gasLimit));
 
     // Request yang sama lagi: pasar sudah tidak OPEN di blok finalized -> tanpa tx.
@@ -124,10 +140,30 @@ describe.skipIf(!enabled || missing.length > 0)("integrasi anvil: CRE_MODE=mock 
     expect(await runner.run(requestTx)).toEqual({ gameRef: GAME_REF, resolved: 0, skipped: 2, note: "nothing to resolve" });
   }, 30_000);
 
-  test("LiveMarket menolak forwarder (onReport revert): forwarder tidak revert, runner melempar error", async () => {
-    const { ids, requestTx } = await marketsRequested([{ marketType: 0, side: 0, fromPly: 59, toPly: 59 }], async () => {});
-    await send(KEYS.deployer, liveMarket, liveMarketAbi as Abi, "setForwarder", [privateKeyToAccount(KEYS.deployer).address]);
-    await expect(runner.run(requestTx)).rejects.toThrow(/ReportProcessed result=false/);
+  test("report GatedForwarder dari selain operator (wallet resolver) revert NotOperator", async () => {
+    const { ids } = await marketsRequested([{ marketType: 0, side: 0, fromPly: 59, toPly: 59 }], async () => {});
+    const rawReport = concat([
+      reportMetadata(keccak256("0x01"), Math.floor(Date.now() / 1000)),
+      encodeReport({ gameKey: gameKeyOf(GAME_REF), ids, outcomes: [1] }),
+    ]);
+    for (const key of [KEYS.alice, KEYS.deployer]) { // deployer = owner LiveMarket
+      await expect(send(key, gated, gatedAbi, "report", [liveMarket, rawReport, "0x", []])).rejects.toThrow(/NotOperator/);
+    }
     expect(await status(ids[0]!)).toBe("OPEN");
+  }, 30_000);
+
+  test("LiveMarket.forwarder() bukan forwarder runner: cre_forwarder_mismatch tanpa tx; cadangan MockKeystoneForwarder asli", async () => {
+    const { ids, requestTx } = await marketsRequested([{ marketType: 0, side: 0, fromPly: 59, toPly: 59 }], async () => {});
+    await send(KEYS.deployer, liveMarket, liveMarketAbi as Abi, "setForwarder", [FORWARDER]);
+    const nonce = await pub.getTransactionCount({ address: privateKeyToAccount(KEYS.resolver).address });
+    await expect(runner.run(requestTx)).rejects.toThrow(/cre_forwarder_mismatch/);
+    expect(await pub.getTransactionCount({ address: privateKeyToAccount(KEYS.resolver).address })).toBe(nonce);
+    expect(await status(ids[0]!)).toBe("OPEN");
+
+    // creGatedForwarder null: runner dan writer memakai MockKeystoneForwarder Chainlink, ABI sama.
+    const r = await mockCre(FORWARDER).runner.run(requestTx);
+    expect(r).toMatchObject({ resolved: 1, skipped: 0, note: "mock-cre" });
+    expect((await pub.getTransaction({ hash: r.txHash! })).to?.toLowerCase()).toBe(FORWARDER.toLowerCase());
+    expect(await status(ids[0]!)).toBe("VOIDED"); // tanpa stake: VOID_NO_WINNERS
   }, 30_000);
 });
