@@ -18,6 +18,12 @@ RUN pnpm install --frozen-lockfile
 COPY config.yaml config.selfhost.yaml schema.graphql tsconfig.json ./
 COPY src ./src
 ENV CONFIG_FILE=config.selfhost.yaml
-RUN pnpm envio codegen --config config.selfhost.yaml
+# Codegen memasang dependensi generated/ (rescript, dll.) lalu meng-compile ReScript. Tanpa pnpm-workspace.yaml
+# sendiri, pnpm 11 memperlakukan generated/ sebagai bagian workspace root dan tidak memasang apa pun
+# ("Already up to date", lalu `rescript` not found). Jadi: codegen pertama membuat generated/ (boleh gagal di
+# langkah rescript), salin file workspace (allowBuilds) ke generated/, pasang dependensinya, lalu codegen ulang.
+RUN pnpm envio codegen --config config.selfhost.yaml || true
+RUN cp pnpm-workspace.yaml generated/pnpm-workspace.yaml && cd generated && pnpm install
+RUN pnpm envio codegen --config config.selfhost.yaml && test -f generated/src/Index.res.mjs
 
 CMD ["sh", "-c", "pnpm envio start --config ${CONFIG_FILE}"]
