@@ -41,6 +41,39 @@ cd indexer && pnpm install && pnpm codegen && pnpm typecheck && pnpm test
 TUI_OFF=true pnpm dev   # Docker; butuh ENVIO_API_TOKEN lokal, lihat indexer/README.md
 ```
 
+## VPS produksi (Tencent, aktif sejak 10-11 Oktober 2026)
+
+| Layanan | URL publik | Di VPS |
+|---|---|---|
+| Resolver (REST + SSE) | `https://api.43-133-151-182.sslip.io` | container `movemarket-resolver`, `127.0.0.1:8787`, `CRE_MODE=mock` (D23) lewat GatedForwarder (D24) |
+| Indexer GraphQL (read-only, role `public`) | `https://indexer.43-133-151-182.sslip.io/v1/graphql` | `backend/indexer/docker-compose.yml`: Postgres + Hasura (`127.0.0.1:8080`) + `movemarket-indexer` (`config.selfhost.yaml`, sumber RPC) |
+| TLS | Caddy (systemd), `backend/deploy/Caddyfile` di `/etc/caddy/Caddyfile` | sertifikat Let's Encrypt otomatis; port 80 dan 443 harus terbuka di security group |
+
+`sslip.io` memetakan nama ke IP sehingga HTTPS jalan tanpa domain. Saat domain final ada, ganti host di Caddyfile (env `API_HOST`, `INDEXER_HOST`) dan reload Caddy.
+
+Tata letak di VPS: `~/movemarket/{source,smart-contract,fe,backend}` (clone repo publik). Secret hanya di VPS, permission 600, tidak di git: `backend/resolver/.env`, `backend/docker-compose.vps.yml` (override: `CRE_MODE=mock`, `TRUST_PROXY`, `ADMIN_TOKEN`, `CORS_ORIGIN`), `backend/indexer/.env` (password Postgres dan secret admin Hasura), `~/.movemarket-admin-token`.
+
+Operasi (di VPS, dari `~/movemarket`):
+
+```bash
+# update kode lalu build ulang
+for r in source smart-contract fe backend; do git -C $r pull --ff-only; done
+sudo docker compose -f backend/docker-compose.yml -f backend/docker-compose.vps.yml up -d --build      # resolver
+(cd backend/indexer && sudo docker compose up -d --build)                                              # indexer
+
+# status dan log
+sudo docker ps
+sudo docker logs -f movemarket-resolver
+sudo docker logs -f movemarket-indexer
+curl -s localhost:8080/v1/graphql -H 'content-type: application/json' -d '{"query":"{ _meta { progressBlock sourceBlock isReady } }"}'
+
+# admin resolver (token di ~/.movemarket-admin-token)
+curl -s -X POST localhost:8787/admin/replay -H "authorization: Bearer $(cat ~/.movemarket-admin-token)" \
+  -H 'content-type: application/json' -d '{"gameId":"ymG9hwyh"}'
+```
+
+Satu instance resolver saja (state di memori). Build di VPS lambat (2 vCPU, RAM 2 GB + swap); Docker Hub dan registry npm bisa time out sesekali, cukup ulangi build.
+
 ## Deploy resolver (container 24 jam)
 
 Image berisi Bun 1.3.14, resolver, proyek `cre/` yang sudah di-build (cache Javy terisi), dan CLI `cre` v1.33.0 (dipin, sha256 diverifikasi dari rilis resmi `smartcontractkit/cre-cli`). Jalan sebagai user `bun` (uid 1000), port 8787 (SOT `resolver.PORT`), `HEALTHCHECK` ke `GET /health`. Tidak ada secret di image: `.env`, `secrets.yaml`, keystore, dan `node_modules` dikecualikan oleh `Dockerfile.dockerignore`.
