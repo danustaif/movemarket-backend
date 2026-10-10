@@ -18,7 +18,7 @@ Off-chain MoveMarket untuk Monad Testnet. Clone repo `movemarket-source` di sebe
 
 Kontrak antarmuka modul resolver ada di `resolver/src/contracts.ts`; API HTTP dan SSE di `@movemarket/shared` (`ResolverRoutes`, `SseEvents`).
 
-Uji integrasi lokal (anvil + kontrak + MockForwarder + resolver, sumber replay dari fixture; plus runner `CRE_MODE=mock` terhadap bytecode MockKeystoneForwarder asli) ada di `resolver/test/integration/`; lihat Perintah.
+Uji integrasi lokal (anvil + kontrak + MockForwarder + resolver, sumber replay dari fixture; plus runner `CRE_MODE=mock` lewat GatedForwarder dan, sebagai cadangan, bytecode MockKeystoneForwarder asli) ada di `resolver/test/integration/`; lihat Perintah.
 
 ## Perintah
 
@@ -81,12 +81,14 @@ Isi `backend/resolver/.env` di server (dibaca compose lewat `env_file`; jangan c
 
 ### Sampai Early Access: `CRE_MODE=mock`
 
-CLI `cre` di container butuh login atau `CRE_API_KEY`, dan keduanya belum tersedia. Supaya pasar ber-stake tetap selesai, set `CRE_MODE=mock` (SOT D23): resolver menjalankan langkah handler workflow yang sama (`getMarkets` di blok finalized, export Lichess, `resolve()`, payload) dengan fungsi dari `@movemarket/shared`, lalu memanggil `report()` MockKeystoneForwarder (`0xB9F79d...`, forwarder yang di-set di `LiveMarket`) dengan wallet resolver lewat antrian transaksi yang sama, gas `cre.gasLimit`. Tidak perlu `CRE_ETH_PRIVATE_KEY`, `CRE_API_KEY`, atau sesi `cre login`. Spesifikasi: `source/docs/RESOLVER_SERVICE.md` 2.7a.
+CLI `cre` di container butuh login atau `CRE_API_KEY`, dan keduanya belum tersedia. Supaya pasar ber-stake tetap selesai, set `CRE_MODE=mock` (SOT D23): resolver menjalankan langkah handler workflow yang sama (`getMarkets` di blok finalized, export Lichess, `resolve()`, payload) dengan fungsi dari `@movemarket/shared`, lalu memanggil `report()` di forwarder mock dengan wallet resolver lewat antrian transaksi yang sama, gas `cre.gasLimit`. Tidak perlu `CRE_ETH_PRIVATE_KEY`, `CRE_API_KEY`, atau sesi `cre login`. Spesifikasi: `source/docs/RESOLVER_SERVICE.md` 2.7a.
 
-- Hanya testnet. Bukan konsensus multi-node: satu proses, satu fetch export, dipercaya seperti resolver. MockKeystoneForwarder memang permissionless (tanpa cek tanda tangan), jadi siapa pun bisa memanggil `report()` selama `LiveMarket` memakai forwarder ini.
+- Forwarder (SOT D24): `GatedForwarder` MoveMarket (`addresses.creGatedForwarder` di SOT), yang hanya menerima `report()` dari wallet resolver (`operator`). Selama alamat itu `null` (belum di-deploy), resolver memakai MockKeystoneForwarder Chainlink `0xB9F79d...`, yang permissionless: siapa pun bisa memanggil `report()` selama `LiveMarket` memakainya. Deploy dan `setForwarder`: `smart-contract/DEPLOY.md` bagian i. `RESOLVER_PRIVATE_KEY` harus wallet `operator`.
+- Saat start dan sebelum setiap report, resolver membaca `LiveMarket.forwarder()`. Kalau beda dengan forwarder mock, log `cre_forwarder_mismatch` dan report tidak dikirim (`cre_run_failed` berisi `cre_forwarder_mismatch`). Log `cre_forwarder` saat start berarti cocok.
+- Hanya testnet. Bukan konsensus multi-node: satu proses, satu fetch export, dipercaya seperti resolver.
 - Bukti bounty CRE tetap dari `cre workflow simulate --broadcast` (tx report `0xb9ee...13c5`), bukan dari mode ini.
 - Log `cre_done` berisi `note: "mock-cre"`; metadata report memakai nama workflow `mock-cre` sehingga report mock bisa dibedakan on-chain dari report CLI.
-- Saat Early Access aktif: deploy workflow, `setForwarder(KeystoneForwarder)`, lalu `CRE_MODE=don`. Mode mock berhenti bekerja begitu forwarder diganti (`onReport` menolak pengirim, runner mencatat `cre_run_failed`).
+- Saat Early Access aktif: deploy workflow, `setForwarder(KeystoneForwarder)`, lalu `CRE_MODE=don`. Mode mock berhenti mengirim begitu forwarder diganti (`cre_forwarder_mismatch`). Sama untuk demo `simulate --broadcast` (forwarder sementara ke MockKeystoneForwarder): kembalikan ke GatedForwarder setelahnya.
 
 ### Kredensial CLI `cre` (hanya `CRE_MODE=simulate`)
 
