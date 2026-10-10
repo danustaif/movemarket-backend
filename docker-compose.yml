@@ -13,7 +13,7 @@ services:
     # Secret dan override (RESOLVER_PRIVATE_KEY, FAUCET_PRIVATE_KEY, ADMIN_TOKEN, CRE_ETH_PRIVATE_KEY, CORS_ORIGIN, ...).
     env_file: resolver/.env
     ports:
-      - "8787:8787"
+      - "127.0.0.1:8787:8787" # publik hanya lewat reverse proxy TLS (deploy/Caddyfile)
     volumes:
       # Sesi `cre login` khusus server (cre.yaml); CLI menulis ulang token di sini, jadi harus writable oleh uid 1000.
       - ./.cre-auth:/home/bun/.cre

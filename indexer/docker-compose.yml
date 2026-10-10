@@ -1,0 +1,78 @@
+# Indexer Envio self-host di VPS (Postgres + Hasura + indexer). Jalankan dari backend/indexer:
+#   docker compose up -d --build
+# Secret di backend/indexer/.env (gitignored, dibaca compose untuk substitusi): ENVIO_PG_PASSWORD, HASURA_GRAPHQL_ADMIN_SECRET; opsional ENVIO_RPC_URL.
+# Hasura hanya di 127.0.0.1:8080; publik lewat reverse proxy yang hanya meneruskan /v1/graphql (backend/deploy/Caddyfile).
+services:
+  envio-postgres:
+    image: postgres:17.5
+    restart: unless-stopped
+    volumes:
+      - envio-indexer-storage:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${ENVIO_PG_PASSWORD:?isi ENVIO_PG_PASSWORD di .env}
+      POSTGRES_USER: postgres
+      POSTGRES_DB: envio
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d envio"]
+      interval: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits: { memory: 384M }
+
+  graphql-engine:
+    image: hasura/graphql-engine:v2.43.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    user: 1001:1001
+    depends_on:
+      envio-postgres: { condition: service_healthy }
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:${ENVIO_PG_PASSWORD}@envio-postgres:5432/envio
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
+      HASURA_GRAPHQL_DEV_MODE: "false"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log
+      HASURA_GRAPHQL_NO_OF_RETRIES: 10
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:?isi HASURA_GRAPHQL_ADMIN_SECRET di .env}
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: "true"
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+      PORT: 8080
+    healthcheck:
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 5s
+      retries: 50
+      start_period: 5s
+    deploy:
+      resources:
+        limits: { memory: 384M }
+
+  envio-indexer:
+    build: .
+    image: movemarket-indexer
+    container_name: movemarket-indexer
+    restart: unless-stopped
+    depends_on:
+      graphql-engine: { condition: service_healthy }
+    environment:
+      ENVIO_PG_HOST: envio-postgres
+      ENVIO_PG_PORT: 5432
+      ENVIO_PG_USER: postgres
+      ENVIO_PG_PASSWORD: ${ENVIO_PG_PASSWORD}
+      ENVIO_PG_DATABASE: envio
+      ENVIO_PG_PUBLIC_SCHEMA: envio
+      ENVIO_RPC_URL: ${ENVIO_RPC_URL:-https://testnet-rpc.monad.xyz}
+      CONFIG_FILE: config.selfhost.yaml
+      HASURA_GRAPHQL_ENDPOINT: http://graphql-engine:8080/v1/metadata
+      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET}
+      HASURA_SERVICE_HOST: graphql-engine
+      HASURA_SERVICE_PORT: 8080
+      LOG_LEVEL: info
+      LOG_STRATEGY: console-pretty
+      TUI_OFF: "true"
+    deploy:
+      resources:
+        limits: { memory: 640M }
+
+volumes:
+  envio-indexer-storage:

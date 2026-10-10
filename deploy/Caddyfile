@@ -1,0 +1,21 @@
+# Reverse proxy TLS untuk VPS (Caddy, sertifikat Let's Encrypt otomatis lewat HTTP-01 di port 80).
+# Domain default memakai sslip.io (DNS publik yang memetakan nama ke IP) supaya HTTPS jalan tanpa membeli domain.
+# Ganti API_HOST/INDEXER_HOST lewat env saat domain final tersedia. Pasang: backend/README.md bagian VPS.
+{$API_HOST:api.43-133-151-182.sslip.io} {
+	encode gzip
+	# SSE /stream: jangan buffer.
+	reverse_proxy 127.0.0.1:8787 {
+		flush_interval -1
+	}
+}
+
+{$INDEXER_HOST:indexer.43-133-151-182.sslip.io} {
+	encode gzip
+	# Hanya endpoint GraphQL publik (role public, read-only). Metadata/console Hasura tidak diekspos.
+	handle /v1/graphql {
+		reverse_proxy 127.0.0.1:8080
+	}
+	handle {
+		respond "Not found" 404
+	}
+}
