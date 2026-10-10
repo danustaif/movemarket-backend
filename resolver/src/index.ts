@@ -14,7 +14,7 @@ import { loadConfig, secret, type Config } from "./config.ts";
 import { log } from "./log.ts";
 import type { GameState, Stop, TxQueue } from "./contracts.ts";
 import { createCreRunner } from "./cre/runner.ts";
-import { createMockCreRunner } from "./cre/mockRunner.ts";
+import { createMockCreRunner, forwarderMismatch, mockForwarderAddress } from "./cre/mockRunner.ts";
 import { createFaucet } from "./faucet/faucet.ts";
 import { createGamePipeline } from "./games/pipeline.ts";
 import { createGameRegistry } from "./games/registry.ts";
@@ -143,12 +143,21 @@ const replayer = createReplayer({
 setInterval(() => replayer.tick().catch((err) => log("replay_tick_failed", { err: String(err) })), TICK_MS);
 
 // ----------------------------------------------------------------------- chain: watcher, CRE, pemulihan
-// mock (D23): resolver memanggil MockKeystoneForwarder langsung dengan logika workflow yang sama, tanpa CLI cre.
+// mock (D23): resolver memanggil forwarder mock (GatedForwarder D24) langsung dengan logika workflow yang sama, tanpa
+// CLI cre. Forwarder dari mockForwarderAddress(), default runner dan contractWriter.
 const cre = cfg.creMode === "simulate"
   ? createCreRunner({ projectDir: resolvePath(cfg.creProjectDir), target: cfg.creTarget })
   : cfg.creMode === "mock" && writer
     ? createMockCreRunner({ client: publicClient, liveMarket: cfg.liveMarket, tx, fetchSnapshot: (ref) => fetchSnapshot(ref), nowSec })
     : undefined;
+// Peringatan dini; runner mengecek lagi sebelum setiap report dan tidak mengirim kalau beda.
+if (cfg.creMode === "mock" && writer) {
+  const forwarder = mockForwarderAddress();
+  forwarderMismatch(publicClient, cfg.liveMarket, forwarder).then(
+    (m) => (m ? log("cre_forwarder_mismatch", { ...m, note: "report CRE mock tidak dikirim sampai LiveMarket.setForwarder" }) : log("cre_forwarder", { forwarder })),
+    (err) => log("cre_forwarder_check_failed", { err: String(err) }),
+  );
+}
 
 /** Provisional dari export resmi untuk partai yang tidak (lagi) dilacak, lalu masuk requester (2.11). */
 async function recoverGame(gameRef: string) {

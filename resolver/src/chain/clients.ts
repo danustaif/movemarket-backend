@@ -8,7 +8,7 @@ import {
 import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { privateKey, type Config, type PrivateKeyName } from "../config.ts";
-import { mockForwarderAbi } from "../cre/mockRunner.ts";
+import { mockForwarderAbi, mockForwarderAddress } from "../cre/mockRunner.ts";
 import type { TxRequest, Write } from "./txQueue.ts";
 
 export type Wallet = WalletClient<Transport, Chain, Account>;
@@ -53,12 +53,12 @@ const ABIS = { liveMarket: liveMarketAbi, mockUsdc: mockUsdcAbi, forwarder: mock
 
 /**
  * Write untuk txQueue: writeContractSync (eth_sendRawTransactionSync), cadangan writeContract + receipt.
- * forwarder (CRE_MODE=mock, SOT D23) default addresses.creMockKeystoneForwarder.
+ * forwarder (CRE_MODE=mock, SOT D23/D24) default mockForwarderAddress().
  */
 export function contractWriter(
   wallet: Wallet, publicClient: PublicClient, addresses: { liveMarket: Address; mockUsdc: Address; forwarder?: Address },
 ): { write: Write; resetNonce(): void } {
-  const to = { forwarder: SOT.addresses.creMockKeystoneForwarder as Address, ...addresses };
+  const to = { forwarder: mockForwarderAddress(), ...addresses };
   let syncSupported = true;
   const write: Write = async (req: TxRequest) => {
     const fees = req.urgent ? lockMarketsFees(await publicClient.estimateFeesPerGas()) : {};

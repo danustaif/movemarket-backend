@@ -3,7 +3,7 @@ import { SOT, decodeReport, gameKeyOf, liveMarketAbi, parseLichessJson, type Mar
 import {
   encodeAbiParameters, encodeEventTopics, getAbiItem, size, sliceHex, type Abi, type Address, type Hex, type Log, type TransactionReceipt,
 } from "viem";
-import { createMockCreRunner, mockForwarderAbi, reportMetadata } from "../../src/cre/mockRunner.ts";
+import { createMockCreRunner, mockForwarderAbi, mockForwarderAddress, reportMetadata } from "../../src/cre/mockRunner.ts";
 import type { ResolverTx } from "../../src/contracts.ts";
 import { fixture } from "../helpers.ts";
 
@@ -42,7 +42,11 @@ const view = (id: bigint, over: Partial<MarketView> = {}): MarketView => ({
   id, gameKey: GAME_KEY, marketType: 0, side: 0, fromPly: 10, toPly: 12, lockTime: 0n, status: 0, ...over,
 });
 
-function setup(o: { request: TransactionReceipt; views?: MarketView[]; snapshot?: Snapshot; report?: (tx: ResolverTx) => TransactionReceipt }) {
+function setup(o: {
+  request: TransactionReceipt; views?: MarketView[]; snapshot?: Snapshot; report?: (tx: ResolverTx) => TransactionReceipt;
+  /** LiveMarket.forwarder() on-chain; default sama dengan forwarder runner. */
+  liveMarketForwarder?: Address;
+}) {
   const sent: ResolverTx[] = [];
   const reads: unknown[] = [];
   const runner = createMockCreRunner({
@@ -51,7 +55,11 @@ function setup(o: { request: TransactionReceipt; views?: MarketView[]; snapshot?
         if (hash !== REQUEST_TX) throw new Error(`receipt tidak dikenal ${hash}`);
         return o.request;
       },
-      readContract: async (args: unknown) => { reads.push(args); return o.views ?? []; },
+      readContract: async (args: { functionName: string }) => {
+        if (args.functionName === "forwarder") return o.liveMarketForwarder ?? FORWARDER;
+        reads.push(args);
+        return o.views ?? [];
+      },
     } as never,
     liveMarket: LIVE_MARKET,
     fetchSnapshot: async (gameRef) => {
@@ -73,6 +81,20 @@ describe("reportMetadata", () => {
     expect(sliceHex(m, 0, 77)).toBe(sliceHex(CLI_METADATA as Hex, 0, 77));
     expect(sliceHex(m, 77, 87)).toBe("0x6d6f636b2d6372650000"); // "mock-cre" + 2 byte nol
     expect(sliceHex(m, 87)).toBe(sliceHex(CLI_METADATA as Hex, 87));
+  });
+});
+
+describe("mockForwarderAddress (SOT D24)", () => {
+  const MOCK = "0x00000000000000000000000000000000000000f1";
+  const GATED = "0x00000000000000000000000000000000000000f2";
+  test("GatedForwarder kalau addresses.creGatedForwarder terisi", () => {
+    expect(mockForwarderAddress({ creGatedForwarder: GATED, creMockKeystoneForwarder: MOCK })).toBe(GATED);
+  });
+  test("null (belum di-deploy): MockKeystoneForwarder Chainlink", () => {
+    expect(mockForwarderAddress({ creGatedForwarder: null, creMockKeystoneForwarder: MOCK })).toBe(MOCK);
+  });
+  test("default dari SOT", () => {
+    expect(mockForwarderAddress()).toBe((SOT.addresses.creGatedForwarder ?? SOT.addresses.creMockKeystoneForwarder) as Address);
   });
 });
 
@@ -141,6 +163,18 @@ describe("createMockCreRunner", () => {
     await expect(rejected.runner.run(REQUEST_TX)).rejects.toThrow(/ReportProcessed/);
     const missing = setup({ ...base, report: () => receiptOf(REPORT_TX, []) });
     await expect(missing.runner.run(REQUEST_TX)).rejects.toThrow(/ReportProcessed/);
+  });
+
+  test("LiveMarket.forwarder() beda dengan forwarder runner: cre_forwarder_mismatch, report tidak dikirim", async () => {
+    const other = "0x00000000000000000000000000000000000000f3" as Address;
+    const { runner, sent } = setup({
+      request: requested([5n]),
+      views: [view(5n, { fromPly: 59, toPly: 59 })],
+      liveMarketForwarder: other,
+      report: () => receiptOf(REPORT_TX, [processed(true)]),
+    });
+    await expect(runner.run(REQUEST_TX)).rejects.toThrow(/cre_forwarder_mismatch.*0x00000000000000000000000000000000000000f3/);
+    expect(sent).toEqual([]);
   });
 
   test("tx tanpa ResolutionRequested dari LiveMarket melempar error", async () => {

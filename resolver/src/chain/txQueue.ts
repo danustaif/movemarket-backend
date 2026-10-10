@@ -5,7 +5,7 @@ import type { TransactionReceipt } from "viem";
 import type { ResolverTx, TxQueue } from "../contracts.ts";
 
 export interface TxRequest {
-  /** forwarder: MockKeystoneForwarder (CRE_MODE=mock, SOT D23). */
+  /** forwarder: forwarder mock (CRE_MODE=mock, SOT D23/D24, mockForwarderAddress). */
   target: "liveMarket" | "mockUsdc" | "forwarder";
   functionName: "lockMarkets" | "adminVoid" | "createMarkets" | "requestResolution" | "mint" | "report";
   args: readonly unknown[];
@@ -42,7 +42,7 @@ export function toRequest(tx: ResolverTx, l: Limits = GAS_LIMITS): TxRequest {
     case "requestResolution":
       return { target: "liveMarket", functionName: "requestResolution", args: [tx.gameRef, tx.ids], gas: batch(l, "requestResolution", tx.ids.length), urgent: false };
     case "creReport":
-      // reportContext dan signatures diabaikan MockKeystoneForwarder (SOT bagian 16).
+      // reportContext dan signatures diabaikan MockKeystoneForwarder dan GatedForwarder (SOT bagian 16, D24).
       return { target: "forwarder", functionName: "report", args: [tx.receiver, tx.rawReport, "0x", []], gas: BigInt(SOT.cre.gasLimit), urgent: false };
     case "mint":
       return { target: "mockUsdc", functionName: "mint", args: [tx.to, tx.amount], gas: limit(l, "mint"), urgent: false };

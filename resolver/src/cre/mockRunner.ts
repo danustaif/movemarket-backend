@@ -1,6 +1,6 @@
 // Runner CRE untuk CRE_MODE=mock (SOT D23, RESOLVER_SERVICE.md 2.7a). Hanya testnet, sambil menunggu Early Access:
 // langkah handler workflow (CRE_WORKFLOW.md bagian 4) dengan fungsi yang sama dari source/shared, lalu report() di
-// MockKeystoneForwarder lewat antrian wallet resolver. Bukan konsensus multi-node; dipercaya seperti resolver.
+// forwarder mock (GatedForwarder D24, atau MockKeystoneForwarder selama belum di-deploy) lewat antrian wallet resolver. Bukan konsensus multi-node; dipercaya seperti resolver.
 // Dipanggil hanya untuk ResolutionRequested yang bloknya sudah finalized (SOT D20).
 import {
   SOT, batchProblem, consensusPayload, encodeReport, liveMarketAbi, openViews, parseConsensusPayload,
@@ -13,9 +13,25 @@ import {
 import type { CreRunner, TxQueue } from "../contracts.ts";
 
 /**
+ * Forwarder CRE_MODE=mock (SOT D24): GatedForwarder MoveMarket kalau addresses.creGatedForwarder terisi, kalau null
+ * MockKeystoneForwarder Chainlink. Satu sumber untuk runner dan contractWriter.
+ */
+export const mockForwarderAddress = (
+  a: { creGatedForwarder: string | null; creMockKeystoneForwarder: string } = SOT.addresses,
+): Address => (a.creGatedForwarder ?? a.creMockKeystoneForwarder) as Address;
+
+/** null kalau LiveMarket.forwarder() = forwarder; selain itu keduanya (log cre_forwarder_mismatch). */
+export async function forwarderMismatch(
+  client: Pick<PublicClient, "readContract">, liveMarket: Address, forwarder: Address,
+): Promise<{ liveMarketForwarder: Address; forwarder: Address } | null> {
+  const liveMarketForwarder = await client.readContract({ address: liveMarket, abi: liveMarketAbi, functionName: "forwarder" });
+  return isAddressEqual(liveMarketForwarder, forwarder) ? null : { liveMarketForwarder, forwarder };
+}
+
+/**
  * Bagian MockKeystoneForwarder yang dipakai (smartcontractkit/chainlink-evm contracts/cre/src/dev/MockKeystoneForwarder.sol).
  * report() permissionless, tidak memeriksa tanda tangan atau execution id ganda, dan TIDAK revert kalau onReport revert:
- * hasilnya hanya ReportProcessed.result (SOT bagian 16).
+ * hasilnya hanya ReportProcessed.result (SOT bagian 16). GatedForwarder (D24) sama, kecuali report() hanya dari operator.
  */
 export const mockForwarderAbi = parseAbi([
   "function report(address receiver, bytes rawReport, bytes reportContext, bytes[] signatures)",
@@ -43,7 +59,7 @@ export const reportMetadata = (executionId: Hex, timestampSec: number): Hex => c
 export interface MockCreDeps {
   client: Pick<PublicClient, "getTransactionReceipt" | "readContract">;
   liveMarket: Address;
-  /** Default SOT addresses.creMockKeystoneForwarder; harus sama dengan alamat forwarder di contractWriter. */
+  /** Default mockForwarderAddress(); harus sama dengan alamat forwarder di contractWriter. */
   forwarder?: Address;
   /** Export resmi Lichess, sumber yang sama dengan CRE (lichess/exportGame.ts fetchSnapshot). */
   fetchSnapshot: (gameRef: string) => Promise<Snapshot>;
@@ -53,7 +69,7 @@ export interface MockCreDeps {
 }
 
 export function createMockCreRunner(d: MockCreDeps): CreRunner {
-  const forwarder = d.forwarder ?? (SOT.addresses.creMockKeystoneForwarder as Address);
+  const forwarder = d.forwarder ?? mockForwarderAddress();
   const attempts = new Map<Hex, number>();
   const fromLiveMarket = (l: { address: Address }) => isAddressEqual(l.address, d.liveMarket);
 
@@ -80,6 +96,10 @@ export function createMockCreRunner(d: MockCreDeps): CreRunner {
       // 4-5. Export resmi -> resolve -> payload "id:code" (tanpa PENDING) -> pasangan report.
       const pairs = parseConsensusPayload(consensusPayload(await d.fetchSnapshot(req.gameRef), views));
       if (pairs.ids.length === 0) return done("nothing to resolve");
+
+      // Report ke forwarder yang tidak dipakai LiveMarket pasti result=false dan tetap membakar gas.
+      const mismatch = await forwarderMismatch(d.client, d.liveMarket, forwarder);
+      if (mismatch) throw new Error(`cre_forwarder_mismatch: LiveMarket.forwarder() ${mismatch.liveMarketForwarder}, report memakai ${forwarder}`);
 
       // 6-7. rawReport = metadata + report, lalu report() di forwarder.
       const attempt = (attempts.get(requestTxHash) ?? 0) + 1;
