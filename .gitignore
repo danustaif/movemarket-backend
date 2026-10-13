@@ -7,3 +7,5 @@ secrets.yaml
 indexer/generated/
 .DS_Store
 .cre-auth/
+.vault-data/
+resolver/data/

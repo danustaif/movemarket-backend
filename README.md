@@ -72,6 +72,8 @@ curl -s -X POST localhost:8787/admin/replay -H "authorization: Bearer $(cat ~/.m
   -H 'content-type: application/json' -d '{"gameId":"ymG9hwyh"}'
 ```
 
+Vault passkey backup (`POST /vault`, SOT D27) disimpan di `backend/.vault-data/vaults.json` (volume, hanya ciphertext, tidak di git). Sebelum `up` pertama kali sesudah fitur ini: `mkdir -p backend/.vault-data && sudo chown 1000:1000 backend/.vault-data && chmod 700 backend/.vault-data`, karena direktori yang dibuat Docker milik root dan `POST /vault` akan gagal 500. Backup cukup salin file itu.
+
 Satu instance resolver saja (state di memori). Build di VPS lambat (2 vCPU, RAM 2 GB + swap); Docker Hub dan registry npm bisa time out sesekali, cukup ulangi build.
 
 ## Deploy resolver (container 24 jam)
@@ -108,7 +110,8 @@ Isi `backend/resolver/.env` di server (dibaca compose lewat `env_file`; jangan c
 | `CRE_MODE` | | Default `simulate`. **VPS sampai Early Access: `mock`** (tanpa CLI dan kredensial `cre`, lihat di bawah). `off` kalau resolusi dijalankan di tempat lain |
 | `CRE_ETH_PRIVATE_KEY` | untuk `simulate` | Wallet `--broadcast` CLI `cre` (saldo di atas 10 MON, SOT 13a). Runner meneruskan env proses ke `cre` kecuali tiga secret resolver di atas |
 | `CRE_API_KEY` | alternatif sesi login, untuk `simulate` | Lihat di bawah |
-| `TRUST_PROXY` | | `true` di belakang reverse proxy |
+| `TRUST_PROXY` | | `true` di belakang reverse proxy (juga wajib untuk rate limit `/vault` per IP) |
+| `VAULT_DIR` | | Direktori `vaults.json` passkey backup (SOT D27). Compose sudah men-set `/data/vault` dengan volume `backend/.vault-data`; lokal default `resolver/data/` |
 
 `CRE_PROJECT_DIR` sudah di-set image ke `/app/backend/cre`; jangan di-override.
 

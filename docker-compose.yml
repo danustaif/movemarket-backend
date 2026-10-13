@@ -14,6 +14,11 @@ services:
     env_file: resolver/.env
     ports:
       - "127.0.0.1:8787:8787" # publik hanya lewat reverse proxy TLS (deploy/Caddyfile)
+    environment:
+      # Vault passkey backup (SOT D27): hanya ciphertext, tetapi harus bertahan saat container dibuat ulang.
+      VAULT_DIR: /data/vault
     volumes:
       # Sesi `cre login` khusus server (cre.yaml); CLI menulis ulang token di sini, jadi harus writable oleh uid 1000.
       - ./.cre-auth:/home/bun/.cre
+      # File vaults.json (POST /vault). Buat dulu di host dan beri ke uid 1000: mkdir -p backend/.vault-data && sudo chown 1000:1000 backend/.vault-data
+      - ./.vault-data:/data/vault
