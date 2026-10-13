@@ -83,6 +83,12 @@ export function createMarketEngine(d: EngineDeps): MarketEngine {
       applyProvisional(state, d.store.byGame(state.gameRef).filter((m) => m.final === null));
     },
 
+    marketsOf(gameRef) {
+      const since = runStart.get(gameRef) ?? -Infinity;
+      return d.store.byGame(gameRef).filter((m) =>
+        createdAt(m) >= since || (m.final === null && m.poolYes + m.poolNo > 0n));
+    },
+
     newRun(gameRef, nowSec) {
       runStart.set(gameRef, nowSec);
       plannedPly.delete(gameRef);

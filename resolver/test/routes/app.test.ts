@@ -22,9 +22,10 @@ function setup(over: Partial<AppDeps> = {}) {
   const deps: AppDeps = {
     registry: { all: () => [game], get: (r) => (r === REF ? game : undefined) },
     store: {
-      all: () => markets, byGame: (r) => markets.filter((m) => m.gameRef === r),
+      all: () => markets,
       positions: async () => [{ marketId: "123", gameRef: REF, stakeYes: "5", stakeNo: "0", status: 0, outcome: 0, resolveDeadline: 1, settled: false, claimable: "0", voidReason: null }],
     },
+    marketsOf: (r) => markets.filter((m) => m.gameRef === r),
     sse: createSseHub({ pingSec: 0 }),
     faucet: {
       onboard: async (a, ip) => { calls.push(`onboard:${a}:${ip}`); return { usdcTx: TX, monTx: null }; },

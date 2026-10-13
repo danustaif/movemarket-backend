@@ -101,6 +101,12 @@ export interface MarketEngine {
    * pasar partai dihitung, supaya restart tidak menduplikasi pasar yang masih berjalan.
    */
   newRun(gameRef: string, nowSec: number): void;
+  /**
+   * Pasar yang ditampilkan untuk partai: run sekarang, plus pasar run lama yang masih menunggu hasil dan punya
+   * stake (uang pengguna). Replay ulang memakai gameRef (dan gameKey) yang sama, jadi tanpa saringan ini
+   * pertanyaan yang sama muncul sekali per run.
+   */
+  marketsOf(gameRef: string): TrackedMarket[];
   /** Per partai. Replay tanpa penonton (SOT D16): berhenti membuat pasar baru, tetap kunci dan selesaikan. */
   setSpawning(gameRef: string, enabled: boolean): void;
 }

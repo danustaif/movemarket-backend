@@ -251,7 +251,7 @@ function clientIp(c: Context): string {
 }
 
 const app = createApp({
-  registry: { all: pipeline.tracked, get: registry.get }, store, sse, faucet, nowSec, creMode: cfg.creMode, clientIp,
+  registry: { all: pipeline.tracked, get: registry.get }, store, marketsOf: engine.marketsOf, sse, faucet, nowSec, creMode: cfg.creMode, clientIp,
   corsOrigin: cfg.corsOrigin,
   adminToken: secret("ADMIN_TOKEN"),
   admin: {

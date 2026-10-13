@@ -8,7 +8,7 @@ import type { ResolverTx } from "../../src/contracts.ts";
 import { fixture } from "../helpers.ts";
 
 const LIVE_MARKET = "0x00000000000000000000000000000000000000aa" as Address;
-const FORWARDER = SOT.addresses.creMockKeystoneForwarder as Address;
+const FORWARDER = mockForwarderAddress(); // forwarder yang dipakai runner (D24: GatedForwarder kalau terisi)
 const GAME_REF = "lichess:game:e9SJcXpJ";
 const GAME_KEY = gameKeyOf(GAME_REF);
 const REQUEST_TX = `0x${"ab".repeat(32)}` as Hex;

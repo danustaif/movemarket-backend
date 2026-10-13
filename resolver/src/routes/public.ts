@@ -9,8 +9,10 @@ import { FaucetError, type Faucet, type GameRegistry, type GameState, type Marke
 
 export interface PublicDeps {
   registry: Pick<GameRegistry, "all" | "get">;
-  store: Pick<MarketStore, "byGame" | "positions"> & { all(): TrackedMarket[] };
+  store: Pick<MarketStore, "positions"> & { all(): TrackedMarket[] };
   sse: Pick<SseHub, "handle">;
+  /** MarketEngine.marketsOf: pasar run sekarang (replay ulang tidak menggandakan pertanyaan). */
+  marketsOf(gameRef: string): TrackedMarket[];
   /** undefined di mode terbatas (alamat kontrak atau key faucet belum diisi): 503. */
   faucet?: Faucet;
   nowSec(): number;
@@ -76,13 +78,13 @@ export function publicRoutes(d: PublicDeps): Hono {
 
   app.get("/games", (c) => {
     const now = d.nowSec();
-    return c.json<Res<"GET /games">>({ games: d.registry.all().map((g) => toSummary(g, d.store.byGame(g.gameRef), now)) });
+    return c.json<Res<"GET /games">>({ games: d.registry.all().map((g) => toSummary(g, d.marketsOf(g.gameRef), now)) });
   });
 
   app.get("/games/:gameRef", (c) => {
     const g = d.registry.get(c.req.param("gameRef"));
     if (!g) return apiError(c, 404, "partai tidak dilacak");
-    const markets = d.store.byGame(g.gameRef);
+    const markets = d.marketsOf(g.gameRef);
     const game: GameDetail = { ...toSummary(g, markets, d.nowSec()), sans: g.sans };
     return c.json<Res<"GET /games/:gameRef">>({ game, markets: markets.map(toMarketDto) });
   });

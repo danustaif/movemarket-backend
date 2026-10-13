@@ -1,4 +1,5 @@
 import { beforeEach, expect, test } from "bun:test";
+import { SOT } from "@movemarket/shared";
 import type { ResolverTx, TrackedMarket } from "../src/contracts.ts";
 import { createMarketEngine } from "../src/markets/engine.ts";
 import { gameState, market, quietSans } from "./helpers.ts";
@@ -85,4 +86,17 @@ test("setSpawning per partai: replay tanpa penonton tidak menghentikan pasar bro
   e.setSpawning("lichess:game:e9SJcXpJ", false);
   await e.onPly(gameState({ gameRef: "lichess:study:cbVdruwJ:fGXnnaOp", source: "broadcast", isReplay: false }), NOW);
   expect(calls).toContain("tx:createMarkets");
+});
+
+test("marketsOf: replay ulang partai yang sama hanya menampilkan pasar run sekarang (plus run lama yang masih menunggu hasil dengan stake)", () => {
+  const { BET_WINDOW_SEC, RESOLVE_DEADLINE_SEC } = SOT.planner;
+  const madeAt = (t: number) => ({ lockTime: t + BET_WINDOW_SEC, resolveDeadline: t + BET_WINDOW_SEC + RESOLVE_DEADLINE_SEC });
+  put(market({ id: 9n, fromPly: 25, ...madeAt(100) }));                                 // run lama, tanpa stake
+  put(market({ id: 13n, fromPly: 25, ...madeAt(200), final: "NO", poolNo: 1n }));      // run lama, sudah final
+  put(market({ id: 15n, fromPly: 29, ...madeAt(210), poolYes: 1n }));                  // run lama, stake menunggu hasil
+  put(market({ id: 66n, fromPly: 25, ...madeAt(NOW + 10) }));                          // run sekarang
+  const e = engine();
+  expect(e.marketsOf("lichess:game:e9SJcXpJ").map((m) => m.id)).toEqual([9n, 13n, 15n, 66n]); // tanpa newRun: semua
+  e.newRun("lichess:game:e9SJcXpJ", NOW);
+  expect(e.marketsOf("lichess:game:e9SJcXpJ").map((m) => m.id)).toEqual([15n, 66n]);
 });
