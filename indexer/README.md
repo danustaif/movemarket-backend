@@ -35,7 +35,7 @@ pnpm envio stop       # hentikan container dan hapus DB lokal
 
 ## Deploy ke Envio Cloud (dijalankan user, butuh login GitHub)
 
-SOT `indexer.platform` dan `indexer.firstDeploy`. Indexer ada di subfolder `indexer/` repo `danustaif/movemarket-backend`.
+SOT `indexer.platform` dan `indexer.firstDeploy`. Indexer ada di subfolder `indexer/` repo `move-market/movemarket-backend`.
 
 ```bash
 npx envio-cloud login                                  # GitHub OAuth
