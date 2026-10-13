@@ -27,6 +27,7 @@ import { MemoryMarketStore } from "./markets/store.ts";
 import { createReplayer } from "./replay/replayer.ts";
 import { toMarketDto } from "./routes/public.ts";
 import { createSseHub } from "./sse/hub.ts";
+import { createVaultStore } from "./vault/store.ts";
 
 
 let cfg: Config;
@@ -253,6 +254,7 @@ function clientIp(c: Context): string {
 const app = createApp({
   registry: { all: pipeline.tracked, get: registry.get }, store, marketsOf: engine.marketsOf, sse, faucet, nowSec, creMode: cfg.creMode, clientIp,
   corsOrigin: cfg.corsOrigin,
+  vault: { store: createVaultStore(resolvePath(cfg.vaultDir)), nowSec: () => Math.floor(Date.now() / 1000), clientIp, log },
   adminToken: secret("ADMIN_TOKEN"),
   admin: {
     track: async (b) => {

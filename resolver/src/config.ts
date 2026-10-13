@@ -21,6 +21,8 @@ export interface Config extends ResolverConfig {
   /** true: IP klien dari entri pertama X-Forwarded-For (hanya di belakang proxy tepercaya). Default alamat socket. */
   trustProxy: boolean;
   faucet: { usdcAmount: bigint; monAmountWei: bigint };
+  /** Direktori file vault passkey backup (SOT D27), relatif ke cwd. Mount sebagai volume di container. */
+  vaultDir: string;
 }
 
 const int = (def: number) => z.coerce.number().int().nonnegative().default(def);
@@ -49,6 +51,7 @@ const schema = z.object({
   TRUST_PROXY: bool(false),
   FAUCET_USDC_AMOUNT: big(SOT.faucet.usdcAmount),
   FAUCET_MON_AMOUNT: big(SOT.faucet.monAmountWei),
+  VAULT_DIR: z.string().default(SOT.account.backup.defaultDir),
 });
 
 /** Env kosong (`X=` di .env) dianggap tidak diisi. */
@@ -97,6 +100,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     requestMaxBatch: e.REQUEST_MAX_BATCH,
     trustProxy: e.TRUST_PROXY,
     faucet: { usdcAmount: e.FAUCET_USDC_AMOUNT, monAmountWei: e.FAUCET_MON_AMOUNT },
+    vaultDir: e.VAULT_DIR,
   };
 }
 

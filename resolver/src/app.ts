@@ -1,14 +1,17 @@
-// Aplikasi Hono: CORS dari CORS_ORIGIN, route publik di /, route admin di /admin.
+// Aplikasi Hono: CORS dari CORS_ORIGIN, route publik di /, passkey backup di /vault, route admin di /admin.
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { log } from "./log.ts";
 import { adminRoutes, type AdminActions } from "./routes/admin.ts";
 import { apiError, publicRoutes, type PublicDeps } from "./routes/public.ts";
+import { vaultRoutes, type VaultDeps } from "./routes/vault.ts";
 
 export interface AppDeps extends PublicDeps {
   corsOrigin: string;
   adminToken: string | undefined;
   admin: AdminActions;
+  /** Passkey backup (SOT D27). */
+  vault: VaultDeps;
 }
 
 export function createApp(d: AppDeps): Hono {
@@ -17,9 +20,10 @@ export function createApp(d: AppDeps): Hono {
   app.use("*", cors({
     origin: origins.includes("*") ? "*" : origins,
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
   }));
   app.route("/admin", adminRoutes(d.adminToken, d.admin));
+  app.route("/vault", vaultRoutes(d.vault));
   app.route("/", publicRoutes(d));
   app.notFound((c) => apiError(c, 404, "not found"));
   app.onError((err, c) => {

@@ -3,6 +3,10 @@ import type { GameDetail, MarketDto } from "@movemarket/shared";
 import { createApp, type AppDeps } from "../../src/app.ts";
 import { FaucetError, type GameState, type TrackedMarket } from "../../src/contracts.ts";
 import { createSseHub } from "../../src/sse/hub.ts";
+import { createVaultStore } from "../../src/vault/store.ts";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const REF = "lichess:game:ymG9hwyh";
 const game: GameState = {
@@ -36,6 +40,7 @@ function setup(over: Partial<AppDeps> = {}) {
     corsOrigin: "http://localhost:5173",
     adminToken: "s3cret",
     clientIp: () => "7.7.7.7",
+    vault: { store: createVaultStore(mkdtempSync(join(tmpdir(), "vault-app-"))), nowSec: () => 1000, clientIp: () => "7.7.7.7" },
     admin: {
       track: async (b) => { calls.push(`track:${JSON.stringify(b)}`); return ["lichess:study:AbCd1234:EfGh5678"]; },
       untrack: (r) => { calls.push(`untrack:${r}`); },
@@ -107,6 +112,16 @@ describe("route publik", () => {
   test("CORS dari CORS_ORIGIN", async () => {
     const res = await setup().app.request("/health", { headers: { origin: "http://localhost:5173" } });
     expect(res.headers.get("access-control-allow-origin")).toBe("http://localhost:5173");
+  });
+
+  test("/vault terpasang; preflight CORS mengizinkan DELETE (hapus backup)", async () => {
+    const { app } = setup();
+    expect(await (await app.request(`/vault/${A}`)).json()).toEqual({ vaults: [] });
+    const pre = await app.request(`/vault/${A}/0x${"22".repeat(32)}`, {
+      method: "OPTIONS",
+      headers: { origin: "http://localhost:5173", "access-control-request-method": "DELETE" },
+    });
+    expect(pre.headers.get("access-control-allow-methods")).toContain("DELETE");
   });
 
   test("GET /stream menghasilkan event-stream", async () => {

@@ -26,7 +26,7 @@ export interface FaucetDeps {
  * Jejak waktu per kunci dalam jendela 24 jam. take() mereservasi slot secara sinkron (sebelum await apa pun)
  * dan mengembalikan fungsi rollback, supaya request paralel tidak bisa melewati batas.
  */
-function quota(max: number, now: () => number) {
+export function quota(max: number, now: () => number) {
   const hits = new Map<string, number[]>();
   const live = (k: string) => (hits.get(k) ?? []).filter((t) => now() - t < DAY_MS);
   return {
