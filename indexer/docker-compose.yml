@@ -1,6 +1,7 @@
 # Indexer Envio self-host di VPS (Postgres + Hasura + indexer). Jalankan dari backend/indexer:
 #   docker compose up -d --build
-# Secret di backend/indexer/.env (gitignored, dibaca compose untuk substitusi): ENVIO_PG_PASSWORD, HASURA_GRAPHQL_ADMIN_SECRET; opsional ENVIO_RPC_URL.
+# Secret di backend/indexer/.env (gitignored, dibaca compose untuk substitusi): ENVIO_PG_PASSWORD, HASURA_GRAPHQL_ADMIN_SECRET,
+# ENVIO_API_TOKEN (HyperSync); opsional ENVIO_RPC_URL (RPC cadangan).
 # Hasura hanya di 127.0.0.1:8080; publik lewat reverse proxy yang hanya meneruskan /v1/graphql (backend/deploy/Caddyfile).
 services:
   envio-postgres:
@@ -61,6 +62,7 @@ services:
       ENVIO_PG_PASSWORD: ${ENVIO_PG_PASSWORD}
       ENVIO_PG_DATABASE: envio
       ENVIO_PG_PUBLIC_SCHEMA: envio
+      ENVIO_API_TOKEN: ${ENVIO_API_TOKEN:?isi ENVIO_API_TOKEN di .env (https://envio.dev/app/api-tokens)}
       ENVIO_RPC_URL: ${ENVIO_RPC_URL:-https://testnet-rpc.monad.xyz}
       CONFIG_FILE: config.selfhost.yaml
       HASURA_GRAPHQL_ENDPOINT: http://graphql-engine:8080/v1/metadata

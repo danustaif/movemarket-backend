@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 # Varian self-host dari config.yaml (dipilih lewat CONFIG_FILE=config.selfhost.yaml, mis. di VPS):
-# sama persis kecuali chain 10143 membaca lewat RPC (tanpa token HyperSync). test/selfhost.test.ts menjaga keduanya sinkron.
+# sama persis kecuali chain 10143 punya RPC cadangan (for: fallback). Sumber utama tetap HyperSync, jadi self-host butuh
+# ENVIO_API_TOKEN (di backend/indexer/.env). test/selfhost.test.ts menjaga keduanya sinkron.
 # Spesifikasi: source/docs/INDEXER.md bagian 1. Nilai dari source/sot/constants.json (addresses, network)
 # dan signature event dari source/sot/abi.json. envio 3.x memakai `chains` (bukan `networks`).
 name: movemarket-indexer
@@ -20,10 +21,10 @@ contracts:
       - event: Claimed(uint256 indexed id, address indexed user, uint256 payout)
       - event: Refunded(uint256 indexed id, address indexed user, uint256 amount)
 chains:
-  - id: 10143 # Monad Testnet. Self-host tanpa ENVIO_API_TOKEN: sumber data RPC, bukan HyperSync.
+  - id: 10143 # Monad Testnet. HyperSync https://10143.hypersync.xyz (token ENVIO_API_TOKEN), RPC hanya cadangan.
     rpc:
       - url: ${ENVIO_RPC_URL:-https://testnet-rpc.monad.xyz} # network.rpcPublic SOT
-        for: sync
+        for: fallback
     start_block: 69649726 # addresses.deployBlock
     contracts:
       - name: LiveMarket

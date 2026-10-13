@@ -1,5 +1,5 @@
 # Indexer Envio self-host (VPS). Pola dari enviodev/local-docker-example, disesuaikan:
-# pnpm 11 (lockfile proyek), tanpa folder abis (ABI event inline di config), config self-host (RPC, tanpa token HyperSync).
+# pnpm 11 (lockfile proyek), tanpa folder abis (ABI event inline di config), config self-host (HyperSync + RPC cadangan; token ENVIO_API_TOKEN dari compose saat run).
 FROM node:24-slim
 
 # psql dipakai envio untuk dump/restore cache efek awal.
