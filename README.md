@@ -46,12 +46,12 @@ TUI_OFF=true pnpm dev   # Docker; butuh ENVIO_API_TOKEN lokal, lihat indexer/REA
 | Layanan | URL publik | Di VPS |
 |---|---|---|
 | Resolver (REST + SSE) | `https://api.43-133-151-182.sslip.io` | container `movemarket-resolver`, `127.0.0.1:8787`, `CRE_MODE=mock` (D23) lewat GatedForwarder (D24) |
-| Indexer GraphQL (read-only, role `public`) | `https://indexer.43-133-151-182.sslip.io/v1/graphql` | `backend/indexer/docker-compose.yml`: Postgres + Hasura (`127.0.0.1:8080`) + `movemarket-indexer` (`config.selfhost.yaml`, sumber RPC) |
+| Indexer GraphQL (read-only, role `public`) | `https://indexer.43-133-151-182.sslip.io/v1/graphql` | `backend/indexer/docker-compose.yml`: Postgres + Hasura (`127.0.0.1:8080`) + `movemarket-indexer` (`config.selfhost.yaml`, sumber HyperSync dengan `ENVIO_API_TOKEN`, RPC Monad cadangan) |
 | TLS | Caddy (systemd), `backend/deploy/Caddyfile` di `/etc/caddy/Caddyfile` | sertifikat Let's Encrypt otomatis; port 80 dan 443 harus terbuka di security group |
 
 `sslip.io` memetakan nama ke IP sehingga HTTPS jalan tanpa domain. Saat domain final ada, ganti host di Caddyfile (env `API_HOST`, `INDEXER_HOST`) dan reload Caddy.
 
-Tata letak di VPS: `~/movemarket/{source,smart-contract,fe,backend}` (clone repo publik). Secret hanya di VPS, permission 600, tidak di git: `backend/resolver/.env`, `backend/docker-compose.vps.yml` (override: `CRE_MODE=mock`, `TRUST_PROXY`, `ADMIN_TOKEN`, `CORS_ORIGIN`), `backend/indexer/.env` (password Postgres dan secret admin Hasura), `~/.movemarket-admin-token`.
+Tata letak di VPS: `~/movemarket/{source,smart-contract,fe,backend}` (clone repo publik). Secret hanya di VPS, permission 600, tidak di git: `backend/resolver/.env`, `backend/docker-compose.vps.yml` (override: `CRE_MODE=mock`, `TRUST_PROXY`, `ADMIN_TOKEN`, `CORS_ORIGIN`), `backend/indexer/.env` (password Postgres, secret admin Hasura, `ENVIO_API_TOKEN`), `~/.movemarket-admin-token`.
 
 Operasi (di VPS, dari `~/movemarket`):
 
